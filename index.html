@@ -8,6 +8,7 @@
   >
   <meta name="theme-color" content="#FFF4E4">
   <title>Store Pull Out System</title>
+  <!-- GitHub scanner wrapper v19: permission-first camera flow -->
 
   <style>
     :root {
@@ -191,6 +192,98 @@
     .scanner-torch.show { display: block; }
     .scanner-torch.active { background: var(--orange); }
 
+    .camera-permission {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding:
+        calc(22px + env(safe-area-inset-top))
+        16px
+        calc(22px + env(safe-area-inset-bottom));
+      background: rgba(8,8,8,.72);
+      backdrop-filter: blur(5px);
+    }
+
+    .camera-permission.open { display: flex; }
+
+    .camera-permission-card {
+      width: min(100%, 520px);
+      margin-top: 8vh;
+      padding: 24px;
+      border-radius: 22px;
+      color: var(--ink);
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(0,0,0,.35);
+    }
+
+    .camera-permission-icon {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 14px;
+      border-radius: 17px;
+      color: #fff;
+      background: var(--orange);
+      font-size: 30px;
+    }
+
+    .camera-permission-title {
+      margin: 0;
+      font-size: clamp(24px, 7vw, 32px);
+      line-height: 1.15;
+    }
+
+    .camera-permission-text {
+      margin: 12px 0 0;
+      font-size: clamp(17px, 4.8vw, 20px);
+      line-height: 1.5;
+      color: #6f584a;
+    }
+
+    .camera-permission-steps {
+      margin: 16px 0 0;
+      padding: 15px 16px 15px 36px;
+      border-radius: 14px;
+      background: #fff4e4;
+      font-size: clamp(16px, 4.4vw, 19px);
+      line-height: 1.55;
+    }
+
+    .camera-permission-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .camera-permission-actions button {
+      min-height: 58px;
+      border: 0;
+      border-radius: 14px;
+      font-size: clamp(17px, 4.8vw, 20px);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .camera-permission-retry {
+      color: #fff;
+      background: var(--orange);
+    }
+
+    .camera-permission-close {
+      color: var(--ink);
+      background: #f0ebe3;
+    }
+
+    @media (max-width: 380px) {
+      .camera-permission-actions { grid-template-columns: 1fr; }
+      .camera-permission-card { padding: 20px; }
+    }
+
     @media (min-width: 800px) {
       .scanner {
         left: 50%;
@@ -239,6 +332,25 @@
     </div>
   </section>
 
+  <section id="cameraPermission" class="camera-permission" aria-hidden="true">
+    <div class="camera-permission-card" role="dialog" aria-modal="true" aria-labelledby="cameraPermissionTitle">
+      <div class="camera-permission-icon">▣</div>
+      <h2 id="cameraPermissionTitle" class="camera-permission-title">Camera access is needed</h2>
+      <p id="cameraPermissionMessage" class="camera-permission-text">
+        Tap <b>Try Camera Again</b>. Chrome will show its official camera permission prompt when permission is still available.
+      </p>
+      <ol class="camera-permission-steps">
+        <li>If Camera is already blocked, tap the site-settings icon beside the address.</li>
+        <li>Set <b>Camera</b> to <b>Allow</b>.</li>
+        <li>Return here and tap <b>Try Camera Again</b>.</li>
+      </ol>
+      <div class="camera-permission-actions">
+        <button id="cameraPermissionRetry" class="camera-permission-retry" type="button">Try Camera Again</button>
+        <button id="cameraPermissionClose" class="camera-permission-close" type="button">Close</button>
+      </div>
+    </div>
+  </section>
+
   <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script>
     (function () {
@@ -250,6 +362,10 @@
       const statusEl = document.getElementById('scannerStatus');
       const closeBtn = document.getElementById('scannerClose');
       const torchBtn = document.getElementById('scannerTorch');
+      const permissionEl = document.getElementById('cameraPermission');
+      const permissionMessageEl = document.getElementById('cameraPermissionMessage');
+      const permissionRetryBtn = document.getElementById('cameraPermissionRetry');
+      const permissionCloseBtn = document.getElementById('cameraPermissionClose');
 
       const scanner = {
         requestId: '',
@@ -275,7 +391,7 @@
           type: 'STORE_PULL_OUT_SCAN_ACK',
           requestId: scanner.requestId
         });
-        openScanner();
+        requestPermissionThenOpen();
       });
 
       closeBtn.addEventListener('click', function () {
@@ -283,10 +399,99 @@
       });
 
       torchBtn.addEventListener('click', toggleTorch);
+      permissionRetryBtn.addEventListener('click', requestPermissionThenOpen);
+      permissionCloseBtn.addEventListener('click', function () {
+        hidePermissionCard();
+        cancelPendingScan();
+      });
 
       document.addEventListener('visibilitychange', function () {
         if (document.hidden && scanner.active) closeScanner(true);
       });
+
+      async function requestPermissionThenOpen() {
+        hidePermissionCard();
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showPermissionCard('Camera access is unavailable in this browser. You can still type the Item No. or use a Bluetooth scanner.');
+          return;
+        }
+
+        let permissionState = 'unknown';
+        if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+          try {
+            const permission = await navigator.permissions.query({ name: 'camera' });
+            permissionState = permission.state || 'unknown';
+          } catch (error) {
+            // Some mobile browsers do not support querying camera permission.
+          }
+        }
+
+        if (permissionState === 'denied') {
+          showPermissionCard('Camera permission is blocked for this GitHub page. Allow Camera in the browser site settings, then tap Try Camera Again.');
+          return;
+        }
+
+        let probeStream = null;
+        try {
+          // This call is made only after the user taps Scan or Try Camera Again.
+          // It is the call that triggers Chrome's official permission prompt.
+          probeStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          });
+        } catch (error) {
+          if (error && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
+            showPermissionCard('Camera permission was not granted. If it is blocked, allow Camera in the browser site settings and tap Try Camera Again.');
+            return;
+          }
+
+          sendToApp({
+            type: 'STORE_PULL_OUT_SCAN_ERROR',
+            requestId: scanner.requestId,
+            message: cameraErrorMessage(error)
+          });
+          cancelPendingScan(false);
+          return;
+        } finally {
+          if (probeStream && probeStream.getTracks) {
+            probeStream.getTracks().forEach(function (track) {
+              try { track.stop(); } catch (error) {}
+            });
+          }
+        }
+
+        await openScanner();
+      }
+
+      function showPermissionCard(message) {
+        stopCamera();
+        scannerEl.classList.remove('open');
+        scannerEl.setAttribute('aria-hidden', 'true');
+        permissionMessageEl.textContent = message;
+        permissionEl.classList.add('open');
+        permissionEl.setAttribute('aria-hidden', 'false');
+      }
+
+      function hidePermissionCard() {
+        permissionEl.classList.remove('open');
+        permissionEl.setAttribute('aria-hidden', 'true');
+      }
+
+      function cancelPendingScan(notifyApp) {
+        hidePermissionCard();
+        if (notifyApp !== false) {
+          sendToApp({
+            type: 'STORE_PULL_OUT_SCAN_CANCEL',
+            requestId: scanner.requestId
+          });
+        }
+        scanner.requestId = '';
+      }
 
       async function openScanner() {
         if (scanner.active) {
@@ -294,6 +499,7 @@
         }
 
         scanner.resultSent = false;
+        hidePermissionCard();
         scannerEl.classList.add('open');
         scannerEl.setAttribute('aria-hidden', 'false');
         statusEl.textContent = 'Starting rear camera…';
@@ -492,15 +698,25 @@
       function failScanner(message) {
         statusEl.textContent = message;
         stopCamera();
+
+        if (/permission|blocked|not granted/i.test(message)) {
+          showPermissionCard(message);
+          return;
+        }
+
         sendToApp({
           type: 'STORE_PULL_OUT_SCAN_ERROR',
           requestId: scanner.requestId,
           message: message
         });
+        scannerEl.classList.remove('open');
+        scannerEl.setAttribute('aria-hidden', 'true');
+        scanner.requestId = '';
       }
 
       async function closeScanner(notifyApp) {
         await stopCamera();
+        hidePermissionCard();
         scannerEl.classList.remove('open');
         scannerEl.setAttribute('aria-hidden', 'true');
         if (notifyApp) {
