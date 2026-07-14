@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+  >
+  <meta name="theme-color" content="#FFF4E4">
+  <title>Store Pull Out System</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #FFF4E4;
+    }
+
+    body {
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    .app-shell {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      padding:
+        env(safe-area-inset-top)
+        env(safe-area-inset-right)
+        env(safe-area-inset-bottom)
+        env(safe-area-inset-left);
+      background: #FFF4E4;
+    }
+
+    .app-frame {
+      display: block;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: #FFF4E4;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app-shell">
+    <!--
+      PASTE YOUR DEPLOYED GOOGLE APPS SCRIPT /exec URL BELOW.
+      Keep ?view=mobile at the end so GAS loads IndexMobile.html.
+    -->
+    <iframe
+      class="app-frame"
+      src="PASTE_YOUR_GAS_EXEC_URL_HERE?view=mobile"
+      title="Store Pull Out System"
+      allow="camera; fullscreen; clipboard-read; clipboard-write"
+      loading="eager"
+      referrerpolicy="strict-origin-when-cross-origin"
+    ></iframe>
+  </main>
+</body>
+</html>
