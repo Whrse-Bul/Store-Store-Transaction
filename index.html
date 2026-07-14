@@ -10,6 +10,12 @@
   <title>Store Pull Out System</title>
 
   <style>
+    :root {
+      --app-bg: #FFF4E4;
+      --orange: #DC6D18;
+      --ink: #2B1A12;
+    }
+
     * { box-sizing: border-box; }
 
     html,
@@ -20,7 +26,8 @@
       padding: 0;
       overflow: hidden;
       overscroll-behavior: none;
-      background: #FFF4E4;
+      background: var(--app-bg);
+      font-family: Arial, sans-serif;
     }
 
     body {
@@ -34,12 +41,7 @@
       width: 100%;
       height: 100vh;
       height: 100dvh;
-      padding:
-        env(safe-area-inset-top)
-        env(safe-area-inset-right)
-        env(safe-area-inset-bottom)
-        env(safe-area-inset-left);
-      background: #FFF4E4;
+      background: var(--app-bg);
     }
 
     .app-frame {
@@ -49,8 +51,152 @@
       margin: 0;
       padding: 0;
       border: 0;
-      background: #FFF4E4;
-      overscroll-behavior: none;
+      background: var(--app-bg);
+    }
+
+    .scanner {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      padding:
+        calc(12px + env(safe-area-inset-top))
+        14px
+        calc(16px + env(safe-area-inset-bottom));
+      color: #fff;
+      background: #080808;
+    }
+
+    .scanner.open { display: flex; }
+
+    .scanner-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      padding-bottom: 12px;
+    }
+
+    .scanner-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.15;
+    }
+
+    .scanner-subtitle {
+      margin: 5px 0 0;
+      color: rgba(255,255,255,.72);
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    .scanner-close,
+    .scanner-torch {
+      flex: 0 0 auto;
+      min-width: 50px;
+      min-height: 50px;
+      border: 0;
+      border-radius: 50%;
+      color: #fff;
+      background: rgba(255,255,255,.16);
+      font-size: 28px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .scanner-view {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      border-radius: 20px;
+      background: #000;
+    }
+
+    .scanner-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    .scanner-shade {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(0,0,0,.52),rgba(0,0,0,.52)) top/100% calc(50% - 72px) no-repeat,
+        linear-gradient(rgba(0,0,0,.52),rgba(0,0,0,.52)) bottom/100% calc(50% - 72px) no-repeat,
+        linear-gradient(rgba(0,0,0,.52),rgba(0,0,0,.52)) left/calc(50% - 150px) 144px no-repeat,
+        linear-gradient(rgba(0,0,0,.52),rgba(0,0,0,.52)) right/calc(50% - 150px) 144px no-repeat;
+    }
+
+    .scanner-frame {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: min(82vw, 360px);
+      height: 144px;
+      transform: translate(-50%,-50%);
+      border: 3px solid var(--orange);
+      border-radius: 18px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.38) inset;
+      pointer-events: none;
+    }
+
+    .scanner-line {
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: 50%;
+      height: 2px;
+      background: #ff8a2a;
+      box-shadow: 0 0 12px #ff8a2a;
+      animation: scanLine 1.6s ease-in-out infinite alternate;
+    }
+
+    @keyframes scanLine {
+      from { transform: translateY(-48px); }
+      to { transform: translateY(48px); }
+    }
+
+    .scanner-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 13px;
+    }
+
+    .scanner-status {
+      flex: 1;
+      min-width: 0;
+      font-size: 15px;
+      line-height: 1.35;
+      color: rgba(255,255,255,.86);
+    }
+
+    .scanner-torch {
+      display: none;
+      border-radius: 14px;
+      min-width: 92px;
+      padding: 0 14px;
+      font-size: 15px;
+    }
+
+    .scanner-torch.show { display: block; }
+    .scanner-torch.active { background: var(--orange); }
+
+    @media (min-width: 800px) {
+      .scanner {
+        left: 50%;
+        width: min(100%, 720px);
+        transform: translateX(-50%);
+      }
     }
   </style>
 </head>
@@ -58,17 +204,355 @@
 <body>
   <main class="app-shell">
     <!--
-      PASTE YOUR DEPLOYED GOOGLE APPS SCRIPT /exec URL BELOW.
-      Keep ?view=mobile at the end so GAS loads IndexMobile.html.
+      REPLACE ONLY THE URL BELOW WITH YOUR DEPLOYED GAS /exec URL.
+      KEEP ?view=mobile AT THE END.
     -->
     <iframe
+      id="gasAppFrame"
       class="app-frame"
       src="https://script.google.com/macros/s/AKfycbwxvUg8ARytVbFpSAVfnp5CFxOe8hdcHxS3TFrtcafrEomfOZauMrfzvLg9H8aL_fYzAA/exec?view=mobile"
       title="Store Pull Out System"
-      allow="camera; fullscreen; clipboard-read; clipboard-write"
+      allow="camera; fullscreen"
       loading="eager"
       referrerpolicy="strict-origin-when-cross-origin"
     ></iframe>
   </main>
+
+  <section id="scanner" class="scanner" aria-hidden="true">
+    <div class="scanner-header">
+      <div>
+        <h1 class="scanner-title">Scan Item Barcode</h1>
+        <p class="scanner-subtitle">Point the rear camera at one barcode. It closes automatically after detection.</p>
+      </div>
+      <button id="scannerClose" class="scanner-close" type="button" aria-label="Close scanner">×</button>
+    </div>
+
+    <div class="scanner-view">
+      <video id="scannerVideo" class="scanner-video" playsinline muted></video>
+      <div class="scanner-shade"></div>
+      <div class="scanner-frame"><div class="scanner-line"></div></div>
+    </div>
+
+    <div class="scanner-footer">
+      <div id="scannerStatus" class="scanner-status">Starting camera…</div>
+      <button id="scannerTorch" class="scanner-torch" type="button">Torch</button>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const frame = document.getElementById('gasAppFrame');
+      const scannerEl = document.getElementById('scanner');
+      const videoEl = document.getElementById('scannerVideo');
+      const statusEl = document.getElementById('scannerStatus');
+      const closeBtn = document.getElementById('scannerClose');
+      const torchBtn = document.getElementById('scannerTorch');
+
+      const scanner = {
+        requestId: '',
+        reader: null,
+        controls: null,
+        stream: null,
+        videoTrack: null,
+        nativeDetector: null,
+        nativeTimer: null,
+        nativeDetecting: false,
+        active: false,
+        torchOn: false,
+        resultSent: false
+      };
+
+      window.addEventListener('message', function (event) {
+        if (!frame.contentWindow || event.source !== frame.contentWindow) return;
+        const data = event.data || {};
+        if (data.type !== 'STORE_PULL_OUT_SCAN_REQUEST') return;
+
+        scanner.requestId = String(data.requestId || '');
+        sendToApp({
+          type: 'STORE_PULL_OUT_SCAN_ACK',
+          requestId: scanner.requestId
+        });
+        openScanner();
+      });
+
+      closeBtn.addEventListener('click', function () {
+        closeScanner(true);
+      });
+
+      torchBtn.addEventListener('click', toggleTorch);
+
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden && scanner.active) closeScanner(true);
+      });
+
+      async function openScanner() {
+        if (scanner.active) {
+          await stopCamera();
+        }
+
+        scanner.resultSent = false;
+        scannerEl.classList.add('open');
+        scannerEl.setAttribute('aria-hidden', 'false');
+        statusEl.textContent = 'Starting rear camera…';
+        torchBtn.classList.remove('show', 'active');
+        torchBtn.textContent = 'Torch';
+        scanner.torchOn = false;
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          failScanner('Camera access is unavailable in this browser. Type the Item No. or use a Bluetooth scanner.');
+          return;
+        }
+
+        try {
+          if (window.ZXingBrowser && window.ZXingBrowser.BrowserMultiFormatReader) {
+            await startZxingScanner();
+          } else if ('BarcodeDetector' in window) {
+            await startNativeScanner();
+          } else {
+            failScanner('The barcode scanner library did not load. Check the internet connection, then tap Scan again.');
+          }
+        } catch (error) {
+          failScanner(cameraErrorMessage(error));
+        }
+      }
+
+      async function startZxingScanner() {
+        scanner.reader = new ZXingBrowser.BrowserMultiFormatReader();
+
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+
+        scanner.controls = await scanner.reader.decodeFromConstraints(
+          constraints,
+          videoEl,
+          function (result, error) {
+            if (scanner.resultSent || !scanner.active) return;
+            if (result) {
+              const code = typeof result.getText === 'function'
+                ? result.getText()
+                : String(result.text || result.rawValue || '');
+              handleDetectedCode(code);
+            }
+          }
+        );
+
+        scanner.active = true;
+        scanner.stream = videoEl.srcObject || null;
+        scanner.videoTrack = scanner.stream && scanner.stream.getVideoTracks
+          ? (scanner.stream.getVideoTracks()[0] || null)
+          : null;
+        statusEl.textContent = 'Ready — center the barcode inside the frame.';
+        configureTorch();
+      }
+
+      async function startNativeScanner() {
+        const requestedFormats = [
+          'code_128', 'code_39', 'code_93', 'codabar',
+          'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e',
+          'qr_code', 'data_matrix'
+        ];
+
+        let usableFormats = requestedFormats;
+        if (typeof BarcodeDetector.getSupportedFormats === 'function') {
+          const supported = await BarcodeDetector.getSupportedFormats();
+          usableFormats = requestedFormats.filter(function (format) {
+            return supported.indexOf(format) !== -1;
+          });
+        }
+
+        scanner.nativeDetector = usableFormats.length
+          ? new BarcodeDetector({ formats: usableFormats })
+          : new BarcodeDetector();
+
+        scanner.stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+
+        scanner.videoTrack = scanner.stream.getVideoTracks()[0] || null;
+        videoEl.srcObject = scanner.stream;
+        await videoEl.play();
+        scanner.active = true;
+        statusEl.textContent = 'Ready — center the barcode inside the frame.';
+        configureTorch();
+        scheduleNativeDetection();
+      }
+
+      function scheduleNativeDetection() {
+        if (!scanner.active || !scanner.nativeDetector) return;
+        clearTimeout(scanner.nativeTimer);
+        scanner.nativeTimer = setTimeout(detectNativeFrame, 170);
+      }
+
+      async function detectNativeFrame() {
+        if (!scanner.active || scanner.nativeDetecting || !scanner.nativeDetector) return;
+        if (videoEl.readyState < 2) {
+          scheduleNativeDetection();
+          return;
+        }
+
+        scanner.nativeDetecting = true;
+        try {
+          const results = await scanner.nativeDetector.detect(videoEl);
+          if (results && results.length && results[0].rawValue) {
+            handleDetectedCode(results[0].rawValue);
+            return;
+          }
+        } catch (error) {
+          // Ignore transient frame errors.
+        } finally {
+          scanner.nativeDetecting = false;
+        }
+        scheduleNativeDetection();
+      }
+
+      function handleDetectedCode(rawCode) {
+        const code = String(rawCode || '').trim();
+        if (!code || scanner.resultSent) return;
+        scanner.resultSent = true;
+
+        sendToApp({
+          type: 'STORE_PULL_OUT_SCAN_RESULT',
+          requestId: scanner.requestId,
+          code: code
+        });
+
+        if (navigator.vibrate) navigator.vibrate(80);
+        closeScanner(false);
+      }
+
+      function configureTorch() {
+        if (!scanner.videoTrack || typeof scanner.videoTrack.getCapabilities !== 'function') return;
+        try {
+          const capabilities = scanner.videoTrack.getCapabilities();
+          if (capabilities && capabilities.torch) {
+            torchBtn.classList.add('show');
+          }
+        } catch (error) {
+          // Torch is optional.
+        }
+      }
+
+      async function toggleTorch() {
+        if (scanner.controls && typeof scanner.controls.switchTorch === 'function') {
+          try {
+            await scanner.controls.switchTorch();
+            scanner.torchOn = !scanner.torchOn;
+            updateTorchButton();
+            return;
+          } catch (error) {
+            // Try track constraints below.
+          }
+        }
+
+        if (!scanner.videoTrack) return;
+        scanner.torchOn = !scanner.torchOn;
+        try {
+          await scanner.videoTrack.applyConstraints({
+            advanced: [{ torch: scanner.torchOn }]
+          });
+          updateTorchButton();
+        } catch (error) {
+          scanner.torchOn = false;
+          updateTorchButton();
+        }
+      }
+
+      function updateTorchButton() {
+        torchBtn.classList.toggle('active', scanner.torchOn);
+        torchBtn.textContent = scanner.torchOn ? 'Torch On' : 'Torch';
+      }
+
+      function cameraErrorMessage(error) {
+        if (error && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
+          return 'Camera permission is blocked. Open the browser site settings for this GitHub page, allow Camera, then tap Scan again.';
+        }
+        if (error && error.name === 'NotFoundError') {
+          return 'No camera was found on this device.';
+        }
+        if (error && error.name === 'NotReadableError') {
+          return 'The camera is being used by another app. Close it and try again.';
+        }
+        return 'Camera could not start. Type the Item No. or use a Bluetooth scanner.';
+      }
+
+      function failScanner(message) {
+        statusEl.textContent = message;
+        stopCamera();
+        sendToApp({
+          type: 'STORE_PULL_OUT_SCAN_ERROR',
+          requestId: scanner.requestId,
+          message: message
+        });
+      }
+
+      async function closeScanner(notifyApp) {
+        await stopCamera();
+        scannerEl.classList.remove('open');
+        scannerEl.setAttribute('aria-hidden', 'true');
+        if (notifyApp) {
+          sendToApp({
+            type: 'STORE_PULL_OUT_SCAN_CANCEL',
+            requestId: scanner.requestId
+          });
+        }
+        scanner.requestId = '';
+      }
+
+      async function stopCamera() {
+        clearTimeout(scanner.nativeTimer);
+        scanner.nativeTimer = null;
+        scanner.active = false;
+        scanner.nativeDetecting = false;
+        scanner.nativeDetector = null;
+        scanner.torchOn = false;
+        torchBtn.classList.remove('show', 'active');
+        torchBtn.textContent = 'Torch';
+
+        if (scanner.controls && typeof scanner.controls.stop === 'function') {
+          try { scanner.controls.stop(); } catch (error) {}
+        }
+        scanner.controls = null;
+
+        if (scanner.reader && typeof scanner.reader.reset === 'function') {
+          try { scanner.reader.reset(); } catch (error) {}
+        }
+        scanner.reader = null;
+
+        const stream = scanner.stream || videoEl.srcObject;
+        if (stream && stream.getTracks) {
+          stream.getTracks().forEach(function (track) {
+            try { track.stop(); } catch (error) {}
+          });
+        }
+
+        scanner.stream = null;
+        scanner.videoTrack = null;
+        try {
+          videoEl.pause();
+          videoEl.srcObject = null;
+        } catch (error) {}
+      }
+
+      function sendToApp(message) {
+        if (frame.contentWindow) {
+          frame.contentWindow.postMessage(message, '*');
+        }
+      }
+    }());
+  </script>
 </body>
 </html>
