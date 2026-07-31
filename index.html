@@ -353,6 +353,12 @@
   .summaryCell span{display:block;font-size:.68rem;color:var(--ink-soft);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
   .summaryCell b{display:block;overflow-wrap:anywhere;}
   .responsiveTxTable .detailsBtn{white-space:nowrap;}
+  .itemCodeControl{display:flex;align-items:stretch;gap:7px;min-width:230px;}
+  .itemCodeControl .itemNo{min-width:0;flex:1 1 auto;}
+  .scanItemBtn{flex:0 0 auto;min-width:48px;padding:8px 10px;border:1px solid var(--line);background:var(--line-soft);color:var(--ink);font-weight:800;}
+  .scanItemBtn:hover{border-color:var(--amber);background:var(--amber-bg);}
+  .nativeCameraInput{position:fixed!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;}
+  .rowLookupStatus{display:block;margin-top:4px;font-size:.7rem;color:var(--ink-soft);min-height:1em;}
   .photoCapture{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .photoCapture input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
   .photoCaptureLabel{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 13px;border:1.5px dashed var(--rose);border-radius:9px;background:var(--rose-bg);color:var(--rose);font-weight:800;cursor:pointer;}
@@ -412,6 +418,8 @@
     .itemTableResponsive tr{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;}
     .itemTableResponsive td{border:0;padding:5px 0;display:grid;grid-template-columns:minmax(105px,38%) minmax(0,1fr);gap:8px;}
     .itemTableResponsive td::before{content:attr(data-label);font-size:.68rem;font-weight:800;color:var(--ink-soft);text-transform:uppercase;}
+    .itemCodeControl{min-width:0;width:100%;}
+    .scanItemBtn{min-width:54px;}
   }
 
   @media (max-width:390px){
@@ -537,7 +545,8 @@
 </div>
 
 <div id="modalHost"></div>
-<div id="loadingOverlay" class="overlay hidden"><div class="loadingBox"><div class="spinner"></div>Processing...</div></div>
+<input id="barcodeCameraCaptureInput" class="nativeCameraInput" type="file" accept="image/*" capture="environment" onchange="handleBarcodeCameraCapture_(this)">
+<div id="loadingOverlay" class="overlay hidden"><div class="loadingBox"><div class="spinner"></div><span id="loadingText">Processing...</span></div></div>
 <div id="toast" class="toast hidden"></div>
 
 <script>
@@ -561,7 +570,7 @@ const GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbwxvUg8ARytVbFpSAV
   if (hasNativeRunner) return;
 
   const REQUEST_TIMEOUT_MS = 30000;
-  const POLL_INTERVAL_MS = 650;
+  const POLL_INTERVAL_MS = 400;
   const pending = Object.create(null);
 
   function bridgeError(message){
@@ -601,7 +610,7 @@ const GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbwxvUg8ARytVbFpSAV
     const request=pending[requestId];
     if(!request)return;
     if(Date.now()>request.deadline){
-      finishRequest(requestId,{success:false,error:'Backend did not respond within 30 seconds. Check the GAS deployment, mobile signal, and Web App access.'});
+      finishRequest(requestId,{success:false,error:'Backend did not respond within 30 seconds. Check the mobile signal, GAS deployment, and Web App access, then tap Retry.'});
       return;
     }
 
@@ -784,7 +793,7 @@ function setLoginStatus_(message,type,showRetry){
 function login(){
   var p={storeName:val('loginStore'),password:val('loginPassword')};
   if(!p.storeName||!p.password){toast('Please select Store Name and enter Password.');return;}
-  showLoading();
+  showLoading('Signing in…');
   google.script.run
     .withSuccessHandler(function(res){
       hideLoading();
@@ -829,7 +838,6 @@ function openAppAfterBootstrap_(){
   renderAllForms();
   selectFormType('bw');
   refreshPoPreviews();
-  ensureMasterlistLoaded_(false);
 }
 function ensureMasterlistLoaded_(showBusy){
   if(MASTERLIST_READY||MASTERLIST_LOADING||!USER)return;
@@ -887,7 +895,6 @@ function showMainModule(name){
 
 /* ── PULL OUT FORM: sub-picker ── */
 function selectFormType(type){
-  ensureMasterlistLoaded_(false);
   document.querySelectorAll('.pickCard').forEach(function(c){c.classList.remove('selected');});
   document.querySelectorAll('#formArea-bw,#formArea-dmg,#formArea-sts').forEach(function(p){p.classList.remove('active');});
   document.getElementById('pick-'+type).classList.add('selected');
@@ -923,13 +930,19 @@ function requireStaff(id){var v=val(id);if(!v||v==='__ADD_STAFF__')throw new Err
 function renderAllForms(){
   document.getElementById('formArea-bw').innerHTML=bwFormHtml();
   document.getElementById('formArea-dmg').innerHTML=damageFormHtml();
-  fillSelect('poReason',DATA.pullOutReasons);
-  fillSelect('poDestination',DATA.stores);
-  document.getElementById('poReason').addEventListener('change',updatePullOutDestination);
-  updatePullOutDestination();
-  fillSelect('damageReason',DATA.damageReasons);
-  updateDamageRequirement();
+  initializeBackToWarehouseForm_();
+  initializeDamageForm_();
   renderStsFormOnly();
+}
+function initializeBackToWarehouseForm_(){
+  fillSelect('poReason',DATA.pullOutReasons,'Select reason of pull out');
+  var reason=document.getElementById('poReason');
+  if(reason)reason.addEventListener('change',updatePullOutDestination);
+  updatePullOutDestination();
+}
+function initializeDamageForm_(){
+  fillSelect('damageReason',DATA.damageReasons,'Select reason of damage');
+  updateDamageRequirement();
 }
 function itemNoDatalistHtml(type){return'<datalist id="'+type+'ItemNoList">'+(DATA.masterlist||[]).map(function(i){return'<option value="'+escapeHtml(i.itemNo)+'">'+escapeHtml(i.itemName+' | '+i.color+(i.size?' | '+i.size:''))+'</option>';}).join('')+'</datalist>';}
 
@@ -947,6 +960,7 @@ function bwFormHtml(){return''+
   '<h4>Items</h4>'+itemTableHtml('po')+
   '<div class="row" style="margin-top:14px">'+
     '<button class="secondary" onclick="addItemRow(\'po\',false)">+ Add item</button>'+
+    '<button class="secondary" onclick="addAndScanItem(\'po\',false)">📷 Scan item</button>'+
     '<button class="cat-amber" onclick="submitPullOut(event)">Submit pull out transaction</button>'+
   '</div>'+
   '</div>';}
@@ -964,12 +978,13 @@ function damageFormHtml(){return''+
   '<h4>Items</h4>'+itemTableHtml('damage')+
   '<div class="row" style="margin-top:14px">'+
     '<button class="secondary" onclick="addItemRow(\'damage\',true)">+ Add item</button>'+
+    '<button class="secondary" onclick="addAndScanItem(\'damage\',true)">📷 Scan item</button>'+
     '<button class="cat-rose" onclick="submitDamage(event)">Submit damage pull out</button>'+
   '</div>'+
   '</div>';}
 
 function itemTableHtml(type){return''+
-  '<div class="tableWrap"><table><thead><tr><th>Item No / Barcode</th><th>Item Name</th><th>Color</th><th>Size</th><th style="width:80px">Qty</th></tr></thead>'+
+  '<div class="tableWrap"><table><thead><tr><th>Item No / Barcode / Scan</th><th>Item Name</th><th>Color</th><th>Size</th><th style="width:80px">Qty</th></tr></thead>'+
   '<tbody id="'+type+'Items"></tbody></table></div>';}
 
 /* ── STORE-TO-STORE FORM (inside Pull Out Form module) ── */
@@ -990,6 +1005,7 @@ function renderStsFormOnly(){
     '<h4>Items to transfer</h4>'+itemTableHtml('sts')+
     '<div class="row" style="margin-top:14px">'+
       '<button class="secondary" onclick="addItemRow(\'sts\',false)">+ Add item</button>'+
+      '<button class="secondary" onclick="addAndScanItem(\'sts\',false)">📷 Scan item</button>'+
       '<button class="cat-violet" onclick="submitStsTransfer(event)">Submit transfer request</button>'+
     '</div>'+
     '</div>';
@@ -1626,28 +1642,69 @@ async function submitStsEdit(trackingNo){
 function cancelStsGroup(trackingNo){if(!confirm('Cancel this transfer? All rows will be marked CANCELLED.'))return;var payload={user:USER,trackingNo:trackingNo,updatedByStaff:requireStaff('stsEditStaff'),cancelGroup:true};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();toast('Transfer cancelled.');closeModal();TX_LOADED=false;AUDIT_LOADED=false;loadAllTx();}).withFailureHandler(function(err){hideLoading();showError(err);}).updateStsOutgoing(payload);}
 
 /* ── ITEM ROWS (shared by bw / dmg / sts forms) ── */
+var BARCODE_CAPTURE_TARGET=null;
+var ZXING_LOAD_PROMISE=null;
+
 function addItemRow(type,isDamage){
+  ensureMasterlistLoaded_(false);
   var id=type+'_'+Date.now()+'_'+Math.random().toString(36).slice(2);
   var tbody=document.getElementById(type+'Items');
   var main=document.createElement('tr');main.setAttribute('data-rowid',id);
-  main.innerHTML='<td><input class="itemNo" list="'+type+'ItemNoList" placeholder="Scan / type item no" onkeydown="scanEnter(event,\''+type+'\',\''+id+'\')" onchange="lookupRowItem(\''+type+'\',\''+id+'\')" oninput="lookupRowItem(\''+type+'\',\''+id+'\',true)"></td><td><input class="itemName readonly" disabled></td><td><input class="color readonly" disabled></td><td><input class="size readonly" disabled></td><td><input class="qty" type="number" min="1" '+(isDamage?'value="1"':'placeholder="Qty"')+'></td>';
+  main.innerHTML='<td><div class="itemCodeControl"><input class="itemNo" list="'+type+'ItemNoList" placeholder="Scan / type item no" data-type="'+type+'" data-rowid="'+id+'" onfocus="ensureMasterlistLoaded_(false)" onkeydown="scanEnter(event,\''+type+'\',\''+id+'\')" onchange="lookupRowItem(\''+type+'\',\''+id+'\')" oninput="lookupRowItem(\''+type+'\',\''+id+'\',true)"><button type="button" class="scanItemBtn" title="Scan barcode with camera" aria-label="Scan barcode with camera" onclick="openBarcodeCameraCapture_(this.previousElementSibling)">📷 Scan</button></div><small class="rowLookupStatus"></small></td><td><input class="itemName readonly" disabled></td><td><input class="color readonly" disabled></td><td><input class="size readonly" disabled></td><td><input class="qty" type="number" min="1" '+(isDamage?'value="1"':'placeholder="Qty"')+'></td>';
   var sub=document.createElement('tr');sub.className='itemRowSub';sub.setAttribute('data-rowid',id);
-  sub.innerHTML='<td colspan="5"><div class="subGrid'+(isDamage?' withDamage':'')+'"><div class="subField"><label>PO Month</label><select class="poMonth">'+monthOptions()+'</select></div><div class="subField"><label>PO Year</label><input class="poYear" type="number" value="'+new Date().getFullYear()+'"></div>'+(isDamage?'<div class="subField damageOnly"><label>Damage Remarks</label><input class="damageRemarks" placeholder="Damage remarks"></div><div class="subField damageOnly"><label>Actual Photo</label><div class="photoCapture"><label class="photoCaptureLabel">Take / Upload Actual Photo<input class="damageImage" type="file" accept="image/*" capture="environment" onchange="previewDamagePhoto(this)"></label><img class="photoPreview" alt="Damage photo preview"><div class="photoHelp">On phone, this opens the camera. Photo is required when the reason is Damage Item.</div></div></div>':'<div></div>')+'<div class="subField"><label>&nbsp;</label><button class="danger" onclick="removeItemRow(\''+type+'\',\''+id+'\')">Remove</button></div></div></td>';
+  sub.innerHTML='<td colspan="5"><div class="subGrid'+(isDamage?' withDamage':'')+'"><div class="subField"><label>PO Month</label><select class="poMonth">'+monthOptions()+'</select></div><div class="subField"><label>PO Year</label><input class="poYear" type="number" value="'+new Date().getFullYear()+'"></div>'+(isDamage?'<div class="subField damageOnly"><label>Damage Remarks</label><input class="damageRemarks" placeholder="Describe the actual damage"></div><div class="subField damageOnly"><label>Actual Photo</label><div class="photoCapture"><label class="photoCaptureLabel">📷 Take / Upload Actual Photo<input class="damageImage" type="file" accept="image/*" capture="environment" onchange="previewDamagePhoto(this)"></label><img class="photoPreview" alt="Damage photo preview"><button type="button" class="secondary clearPhotoBtn hidden" onclick="clearDamagePhoto(this)">Remove photo</button><div class="photoHelp">Phone: opens the rear camera. Damage Remarks and Actual Photo are required for Damage Item.</div></div></div>':'<div></div>')+'<div class="subField"><label>&nbsp;</label><button class="danger" onclick="removeItemRow(\''+type+'\',\''+id+'\')">Remove</button></div></div></td>';
   tbody.appendChild(main);tbody.appendChild(sub);
   if(isDamage)updateDamageRequirement();
   setTimeout(function(){main.querySelector('.itemNo').focus();},50);
 }
+function addAndScanItem(type,isDamage){
+  addItemRow(type,isDamage);
+  window.setTimeout(function(){
+    var rows=document.querySelectorAll('#'+type+'Items tr[data-rowid]:not(.itemRowSub)');
+    var row=rows.length?rows[rows.length-1]:null;
+    var input=row?row.querySelector('.itemNo'):null;
+    if(input)openBarcodeCameraCapture_(input);
+  },80);
+}
 function removeItemRow(type,id){document.querySelectorAll('#'+type+'Items tr[data-rowid="'+id+'"]').forEach(function(row){row.remove();});}
 function scanEnter(e,type,id){if(e.key==='Enter'){e.preventDefault();lookupRowItem(type,id);}}
+function setRowLookupStatus_(tr,message,isError){var el=tr?tr.querySelector('.rowLookupStatus'):null;if(!el)return;el.textContent=message||'';el.style.color=isError?'var(--bad-text)':'var(--ink-soft)';}
+function clearRowItem_(tr){if(!tr)return;tr.querySelector('.itemName').value='';tr.querySelector('.color').value='';tr.querySelector('.size').value='';}
+function applyItemToRow_(tr,item,focusQty){
+  if(!tr||!item)return;
+  tr.querySelector('.itemNo').value=item.itemNo||'';
+  tr.querySelector('.itemName').value=item.itemName||'';
+  tr.querySelector('.color').value=item.color||'';
+  tr.querySelector('.size').value=item.size||'';
+  setRowLookupStatus_(tr,'Item verified.',false);
+  if(focusQty)tr.querySelector('.qty').focus();
+}
 function lookupRowItem(type,id,silent){
-  if(!MASTERLIST_READY){ensureMasterlistLoaded_(false);if(!silent)toast('Item list is loading. Please try again in a moment.');return;}
   var tr=document.querySelector('#'+type+'Items tr[data-rowid="'+id+'"]');if(!tr)return;
   var itemNo=tr.querySelector('.itemNo').value.trim();
-  if(!itemNo){tr.querySelector('.itemName').value='';tr.querySelector('.color').value='';tr.querySelector('.size').value='';return;}
-  var item=DATA.masterlist.find(function(x){return String(x.itemNo).trim().toUpperCase()===itemNo.toUpperCase();});
-  if(!item){tr.querySelector('.itemName').value='';tr.querySelector('.color').value='';tr.querySelector('.size').value='';if(!silent)toast('Item No. not on list: '+itemNo);return;}
-  tr.querySelector('.itemNo').value=item.itemNo;tr.querySelector('.itemName').value=item.itemName;tr.querySelector('.color').value=item.color;tr.querySelector('.size').value=item.size||'';
-  if(!silent)tr.querySelector('.qty').focus();
+  if(!itemNo){clearRowItem_(tr);setRowLookupStatus_(tr,'',false);return;}
+
+  var item=(DATA.masterlist||[]).find(function(x){return String(x.itemNo).trim().toUpperCase()===itemNo.toUpperCase();});
+  if(item){applyItemToRow_(tr,item,!silent);return;}
+
+  // Do not call the server for every keystroke. The onchange, Enter, and camera
+  // scan paths use this on-demand lookup while the full datalist loads lazily.
+  if(silent)return;
+  setRowLookupStatus_(tr,'Checking item…',false);
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(!document.body.contains(tr))return;
+      if(res&&res.success&&res.item){
+        DATA.masterlist=DATA.masterlist||[];
+        if(!DATA.masterlist.some(function(x){return String(x.itemNo).toUpperCase()===String(res.item.itemNo).toUpperCase();}))DATA.masterlist.push(res.item);
+        applyItemToRow_(tr,res.item,true);
+        refreshMasterlistDatalists_();
+      }else{
+        clearRowItem_(tr);setRowLookupStatus_(tr,'Item not found.',true);toast('Item No. not on list: '+itemNo);
+      }
+    })
+    .withFailureHandler(function(err){if(!document.body.contains(tr))return;clearRowItem_(tr);setRowLookupStatus_(tr,'Lookup failed. Try again.',true);showError(err);})
+    .lookupMasterItem(USER,itemNo);
 }
 function collectRows(type,isDamage){
   var rows=Array.from(document.querySelectorAll('#'+type+'Items tr[data-rowid]:not(.itemRowSub)'));var items=[];
@@ -1658,7 +1715,7 @@ function collectRows(type,isDamage){
     if(!itemNo&&!qty)continue;
     if(!itemNo||!itemName||qty<=0||!poMonth||!poYear)throw new Error('Please complete all required item row details.');
     var item={itemNo:itemNo,qty:qty,poMonth:poMonth,poYear:poYear};
-    if(isDamage){item.damageRemarks=sub.querySelector('.damageRemarks')?sub.querySelector('.damageRemarks').value.trim():'';var fi=sub.querySelector('.damageImage');item.file=fi&&fi.files&&fi.files[0]?fi.files[0]:null;if(requireDamage&&(!item.damageRemarks||!item.file))throw new Error('Damage Remarks and Picture are required for Damage Item.');}
+    if(isDamage){item.damageRemarks=sub.querySelector('.damageRemarks')?sub.querySelector('.damageRemarks').value.trim():'';var fi=sub.querySelector('.damageImage');item.file=fi&&fi.files&&fi.files[0]?fi.files[0]:null;if(requireDamage&&(!item.damageRemarks||!item.file))throw new Error('Damage Remarks and Actual Photo are required for Damage Item.');}
     items.push(item);
   }
   return items;
@@ -1666,11 +1723,20 @@ function collectRows(type,isDamage){
 function previewDamagePhoto(input){
   var wrap=input.closest('.photoCapture');
   var preview=wrap?wrap.querySelector('.photoPreview'):null;
+  var clearBtn=wrap?wrap.querySelector('.clearPhotoBtn'):null;
   var file=input.files&&input.files[0]?input.files[0]:null;
   if(!preview)return;
-  if(!file){preview.removeAttribute('src');preview.classList.remove('show');return;}
+  if(!file){preview.removeAttribute('src');preview.classList.remove('show');if(clearBtn)clearBtn.classList.add('hidden');return;}
   preview.src=URL.createObjectURL(file);
   preview.classList.add('show');
+  if(clearBtn)clearBtn.classList.remove('hidden');
+}
+function clearDamagePhoto(btn){
+  var wrap=btn.closest('.photoCapture');if(!wrap)return;
+  var input=wrap.querySelector('.damageImage');var preview=wrap.querySelector('.photoPreview');
+  if(input)input.value='';
+  if(preview){preview.removeAttribute('src');preview.classList.remove('show');}
+  btn.classList.add('hidden');
 }
 function fileToDataUrl(file){
   return new Promise(function(resolve,reject){
@@ -1693,28 +1759,93 @@ function fileToDataUrl(file){
           resolve(canvas.toDataURL('image/jpeg',.82));
         }catch(error){reject(error);}
       };
-      image.onerror=function(){reject(new Error('Unable to open image file.'));};
+      image.onerror=function(){reject(new Error('Unable to read image.'));};
       image.src=event.target.result;
     };
-    reader.onerror=function(){reject(new Error('Unable to read image file.'));};
+    reader.onerror=function(){reject(new Error('Unable to read image.'));};
     reader.readAsDataURL(file);
   });
 }
 
+/* Camera-photo barcode scanner. Native BarcodeDetector is attempted first;
+   ZXing is loaded only when Scan is used and only when native detection fails. */
+function openBarcodeCameraCapture_(inputEl){
+  if(!inputEl)return;
+  BARCODE_CAPTURE_TARGET=inputEl;
+  var capture=document.getElementById('barcodeCameraCaptureInput');
+  if(!capture){toast('Camera capture is unavailable.');return;}
+  capture.value='';
+  try{capture.click();}catch(_error){toast('Unable to open the camera. Type the Item No. manually.');}
+}
+function barcodeTextFromResult_(result){if(!result)return'';if(typeof result.getText==='function')return String(result.getText()||'').trim();if(result.rawValue!==undefined)return String(result.rawValue||'').trim();if(result.text!==undefined)return String(result.text||'').trim();return'';}
+function barcodeTextFromResults_(results){if(!results||!results.length)return'';for(var i=0;i<results.length;i++){var value=barcodeTextFromResult_(results[i]);if(value)return value;}return'';}
+async function createOrientedBitmap_(file){if(typeof createImageBitmap!=='function')return null;try{return await createImageBitmap(file,{imageOrientation:'from-image'});}catch(_error){return await createImageBitmap(file);}}
+function drawBitmapToCanvas_(bitmap,maxDimension){var w=Number(bitmap.width||0),h=Number(bitmap.height||0);if(!w||!h)return null;var scale=Math.max(w,h)>maxDimension?maxDimension/Math.max(w,h):1;var c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));var x=c.getContext('2d',{willReadFrequently:true});if(!x)return null;x.drawImage(bitmap,0,0,c.width,c.height);return c;}
+function makeHighContrastCanvas_(source){var c=document.createElement('canvas');c.width=source.width;c.height=source.height;var x=c.getContext('2d',{willReadFrequently:true});if(!x)return null;x.drawImage(source,0,0);try{var img=x.getImageData(0,0,c.width,c.height),d=img.data;for(var i=0;i<d.length;i+=4){var lum=d[i]*.299+d[i+1]*.587+d[i+2]*.114;var v=lum<145?0:255;d[i]=d[i+1]=d[i+2]=v;}x.putImageData(img,0,0);}catch(_error){return null;}return c;}
+function rotateCanvas_(source,degrees){var swap=Math.abs(degrees)%180===90,c=document.createElement('canvas');c.width=swap?source.height:source.width;c.height=swap?source.width:source.height;var x=c.getContext('2d');if(!x)return null;x.translate(c.width/2,c.height/2);x.rotate(degrees*Math.PI/180);x.drawImage(source,-source.width/2,-source.height/2);return c;}
+async function detectWithNativeBarcodeDetector_(file){
+  if(!('BarcodeDetector' in window)||typeof createImageBitmap!=='function')return'';
+  var requested=['code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e','qr_code','data_matrix'],detector;
+  try{var supported=typeof BarcodeDetector.getSupportedFormats==='function'?await BarcodeDetector.getSupportedFormats():requested;var usable=requested.filter(function(f){return supported.indexOf(f)!==-1;});detector=usable.length?new BarcodeDetector({formats:usable}):new BarcodeDetector();}catch(_error){try{detector=new BarcodeDetector();}catch(_e){return'';}}
+  var bitmap=null;
+  try{
+    bitmap=await createOrientedBitmap_(file);if(!bitmap)return'';
+    try{var direct=barcodeTextFromResults_(await detector.detect(bitmap));if(direct)return direct;}catch(_error){}
+    var canvas=drawBitmapToCanvas_(bitmap,1800);
+    if(canvas){
+      try{var resized=barcodeTextFromResults_(await detector.detect(canvas));if(resized)return resized;}catch(_error){}
+      var contrast=makeHighContrastCanvas_(canvas);if(contrast){try{var high=barcodeTextFromResults_(await detector.detect(contrast));if(high)return high;}catch(_error){}}
+      var rotations=[90,270,180];for(var i=0;i<rotations.length;i++){var rotated=rotateCanvas_(canvas,rotations[i]);if(!rotated)continue;try{var rotatedCode=barcodeTextFromResults_(await detector.detect(rotated));if(rotatedCode)return rotatedCode;}catch(_error){}}
+    }
+  }catch(_error){return'';}finally{if(bitmap&&bitmap.close){try{bitmap.close();}catch(_error){}}}
+  return'';
+}
+function ensureZxingLoaded_(){
+  if(window.ZXingBrowser&&window.ZXingBrowser.BrowserMultiFormatReader)return Promise.resolve();
+  if(ZXING_LOAD_PROMISE)return ZXING_LOAD_PROMISE;
+  ZXING_LOAD_PROMISE=new Promise(function(resolve,reject){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js';s.async=true;s.onload=resolve;s.onerror=function(){reject(new Error('Barcode library failed to load.'));};document.head.appendChild(s);});
+  return ZXING_LOAD_PROMISE;
+}
+function loadBarcodeImage_(url){return new Promise(function(resolve,reject){var img=new Image();img.decoding='async';img.onload=function(){resolve(img);};img.onerror=function(){reject(new Error('Image load failed.'));};img.src=url;});}
+async function detectWithZxing_(file){
+  try{await ensureZxingLoaded_();}catch(_error){return'';}
+  if(!window.ZXingBrowser||!window.ZXingBrowser.BrowserMultiFormatReader)return'';
+  var objectUrl=URL.createObjectURL(file),reader=null,image=null;
+  try{reader=new window.ZXingBrowser.BrowserMultiFormatReader();image=await loadBarcodeImage_(objectUrl);image.style.position='fixed';image.style.left='-10000px';document.body.appendChild(image);if(typeof reader.decodeFromImageElement==='function'){try{var r1=await reader.decodeFromImageElement(image);var c1=barcodeTextFromResult_(r1);if(c1)return c1;}catch(_error){}}if(typeof reader.decodeFromImageUrl==='function'){try{var r2=await reader.decodeFromImageUrl(objectUrl);var c2=barcodeTextFromResult_(r2);if(c2)return c2;}catch(_error){}}}catch(_error){return'';}finally{if(reader&&typeof reader.reset==='function'){try{reader.reset();}catch(_error){}}if(image&&image.parentNode)image.parentNode.removeChild(image);URL.revokeObjectURL(objectUrl);}return'';
+}
+async function handleBarcodeCameraCapture_(fileInput){
+  var file=fileInput&&fileInput.files&&fileInput.files[0],target=BARCODE_CAPTURE_TARGET;
+  if(!file||!target)return;
+  showLoading('Reading barcode…');
+  try{
+    var code=await detectWithNativeBarcodeDetector_(file);if(!code)code=await detectWithZxing_(file);code=String(code||'').trim();
+    if(!code)throw new Error('NO_BARCODE');
+    if(!document.body.contains(target))throw new Error('TARGET_GONE');
+    target.value=code;
+    lookupRowItem(target.dataset.type,target.dataset.rowid,false);
+    toast('Barcode read: '+code);
+  }catch(err){toast(err&&err.message==='TARGET_GONE'?'The item row was closed before scanning finished.':'Barcode not read. Retake closer with the full barcode sharp and well lit, or type the Item No. manually.');}
+  finally{hideLoading();if(fileInput)fileInput.value='';BARCODE_CAPTURE_TARGET=null;}
+}
+
 /* ── PULL OUT SUBMIT ── */
-async function submitPullOut(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('po',false);if(!items.length)throw new Error('Please add at least one item.');var payload={user:USER,staffName:requireStaff('poStaff'),reason:val('poReason'),destination:val('poDestination'),printRemarks:val('poPrintRemarks'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Pull out saved',res.trackingNo);document.getElementById('formArea-bw').innerHTML=bwFormHtml();fillSelect('poReason',DATA.pullOutReasons);fillSelect('poDestination',DATA.stores);document.getElementById('poReason').addEventListener('change',updatePullOutDestination);updatePullOutDestination();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitPullOutTransaction(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
-async function submitDamage(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('damage',true);if(!items.length)throw new Error('Please add at least one item.');for(var i=0;i<items.length;i++){items[i].imageData=await fileToDataUrl(items[i].file);delete items[i].file;}var payload={user:USER,staffName:requireStaff('damageStaff'),reasonDamage:val('damageReason'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Damage pull out saved',res.trackingNo);document.getElementById('formArea-dmg').innerHTML=damageFormHtml();fillSelect('damageReason',DATA.damageReasons);updateDamageRequirement();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitDamagePullOut(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
+async function submitPullOut(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('po',false);if(!items.length)throw new Error('Please add at least one item.');var payload={user:USER,staffName:requireStaff('poStaff'),reason:val('poReason'),destination:val('poDestination'),printRemarks:val('poPrintRemarks'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Pull out saved',res.trackingNo);document.getElementById('formArea-bw').innerHTML=bwFormHtml();initializeBackToWarehouseForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitPullOutTransaction(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
+async function submitDamage(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('damage',true);if(!items.length)throw new Error('Please add at least one item.');for(var i=0;i<items.length;i++){items[i].imageData=await fileToDataUrl(items[i].file);delete items[i].file;}var payload={user:USER,staffName:requireStaff('damageStaff'),reasonDamage:val('damageReason'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Damage pull out saved',res.trackingNo);document.getElementById('formArea-dmg').innerHTML=damageFormHtml();initializeDamageForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitDamagePullOut(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
 
 /* ── DESTINATION LOGIC (Back to Warehouse form) ── */
 function updatePullOutDestination(){
   var reason=val('poReason').toUpperCase();var dest=document.getElementById('poDestination');if(!dest)return;
-  var wh=['BACK TO WAREHOUSE','DAMAGE','SLOW MOVING','CLEARANCE'];
-  var shouldW=wh.some(function(r){return reason.indexOf(r)!==-1;});
-  if(shouldW){ensureDestinationOption('WAREHOUSE');dest.value='WAREHOUSE';dest.disabled=true;dest.classList.add('readonly');}
-  else{dest.disabled=false;dest.classList.remove('readonly');}
+  var isStockTransfer=reason.indexOf('STOCK TRANSFER')!==-1;
+  if(isStockTransfer){
+    var stores=(DATA.stores||[]).filter(function(store){return store&&(!USER||store!==USER.storeName)&&String(store).toUpperCase()!=='WAREHOUSE';});
+    dest.innerHTML='<option value="">Select destination store</option>'+stores.map(function(store){return'<option value="'+escapeHtml(store)+'">'+escapeHtml(store)+'</option>';}).join('');
+    dest.disabled=false;dest.classList.remove('readonly');
+  }else{
+    dest.innerHTML='<option value="WAREHOUSE">WAREHOUSE</option>';
+    dest.value='WAREHOUSE';dest.disabled=true;dest.classList.add('readonly');
+  }
 }
-function ensureDestinationOption(value){var dest=document.getElementById('poDestination');if(!dest)return;var ex=Array.from(dest.options).some(function(o){return o.value===value;});if(!ex){var o=document.createElement('option');o.value=value;o.textContent=value;dest.appendChild(o);}}
-function updateDamageRequirement(){var reason=val('damageReason').toUpperCase();var show=reason.indexOf('DAMAGE ITEM')!==-1;document.querySelectorAll('.damageOnly').forEach(function(el){el.classList.toggle('hidden',!show);});}
+function updateDamageRequirement(){var reason=val('damageReason').toUpperCase();var show=reason.indexOf('DAMAGE ITEM')!==-1;document.querySelectorAll('#formArea-dmg .damageOnly').forEach(function(el){el.classList.toggle('hidden',!show);});}
 
 /* ── SHARED RENDER ── */
 function statusClass(status){var s=String(status||'').toUpperCase();if(s==='PENDING')return'pending';if(s==='RECEIVED'||s.indexOf('RECEIVED')!==-1)return'received';if(s==='CANCELLED'||s==='CANCEL')return'cancelled';if(s.indexOf('PROBLEM')!==-1||s.indexOf('MISSING')!==-1||s.indexOf('SHORT')!==-1)return'problem';return'default';}
@@ -2048,12 +2179,12 @@ function parseMonthYear(text){var raw=String(text||'');var parts=raw.split('-');
 function monthOptionsWithSelected(sel){var html='';var s=String(sel||'');for(var i=0;i<12;i++){var v=String(i+1);html+='<option value="'+v+'"'+(v===s?' selected':'')+'>'+new Date(2000,i,1).toLocaleString('en-US',{month:'long'})+'</option>';}return html;}
 function monthOptions(){var html='';var cm=new Date().getMonth();for(var i=0;i<12;i++){html+='<option value="'+(i+1)+'"'+(i===cm?' selected':'')+'>'+new Date(2000,i,1).toLocaleString('en-US',{month:'long'})+'</option>';}return html;}
 function val(id){var el=document.getElementById(id);return el?el.value.trim():'';}
-function fillSelect(id,values){var el=document.getElementById(id);if(!el)return;el.innerHTML=(values||[]).map(function(v){return'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>';}).join('');}
+function fillSelect(id,values,placeholder,selected){var el=document.getElementById(id);if(!el)return;var cleanValues=(values||[]).filter(function(v){return String(v||'').trim();});var html=placeholder?'<option value="">'+escapeHtml(placeholder)+'</option>':'';html+=cleanValues.map(function(v){return'<option value="'+escapeHtml(v)+'"'+(selected===v?' selected':'')+'>'+escapeHtml(v)+'</option>';}).join('');if(!cleanValues.length)html='<option value="">No options configured</option>';el.innerHTML=html;}
 function fillStoreSelect(id,values){var el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">Select store</option>'+(values||[]).map(function(v){return'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>';}).join('');}
 function closeModal(){document.getElementById('modalHost').innerHTML='';}
 function toast(msg){var el=document.getElementById('toast');el.textContent=msg;el.classList.remove('hidden');setTimeout(function(){el.classList.add('hidden');},3600);}
-function showLoading(){document.getElementById('loadingOverlay').classList.remove('hidden');}
-function hideLoading(){document.getElementById('loadingOverlay').classList.add('hidden');}
+function showLoading(message){var text=document.getElementById('loadingText');if(text)text.textContent=message||'Processing...';document.getElementById('loadingOverlay').classList.remove('hidden');}
+function hideLoading(){document.getElementById('loadingOverlay').classList.add('hidden');var text=document.getElementById('loadingText');if(text)text.textContent='Processing...';}
 function setButtonLoading(btn,isLoading){if(!btn)return;if(isLoading){btn.dataset.originalText=btn.textContent;btn.disabled=true;btn.textContent='Processing…';}else{btn.disabled=false;btn.textContent=btn.dataset.originalText||btn.textContent;}}
 function showSuccessAnimation(title,trackingNo){var host=document.getElementById('modalHost');host.innerHTML='<div class="overlay"><div class="modal" style="text-align:center;max-width:380px;"><div style="font-size:34px;margin-bottom:6px">✓</div><h3 style="margin:0 0 4px">'+escapeHtml(title)+'</h3><p class="mono" style="color:var(--ink-soft);font-size:13px;margin:0">'+escapeHtml(trackingNo)+'</p></div></div>';setTimeout(function(){host.innerHTML='';},1300);}
 function showError(err){toast(err&&err.message?err.message:String(err));}
