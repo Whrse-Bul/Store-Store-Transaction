@@ -3557,104 +3557,196 @@
 <div id="loadingOverlay" class="overlay hidden"><div class="loadingBox"><div class="spinner"></div>Processing...</div></div>
 <div id="toast" class="toast hidden"></div>
 
-
 <script>
-/* GitHub-native bridge: keeps the GitHub URL visible and calls Code.gs without an iframe. */
-const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbwxvUg8ARytVbFpSAVfnp5CFxOe8hdcHxS3TFrtcafrEomfOZauMrfzvLg9H8aL_fYzAA/exec';
-(function installAppsScriptBridge(){
-  if(window.google&&window.google.script&&window.google.script.run)return;
+/*
+ * UNIVERSAL APPS SCRIPT BRIDGE
+ *
+ * This exact HTML file can be used in both locations:
+ *   1) Google Apps Script HTML Service
+ *   2) GitHub Pages
+ *
+ * In Apps Script, the native google.script.run API is used.
+ * In GitHub, requests are posted to the deployed GAS /exec URL and the
+ * response is returned through window.top.postMessage().
+ */
+const GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbwxvUg8ARytVbFpSAVfnp5CFxOe8hdcHxS3TFrtcafrEomfOZauMrfzvLg9H8aL_fYzAA/exec";
 
-  const CHANNEL='STORE_PULL_OUT_GAS_BRIDGE_V1';
-  const pending={};
+(function installUniversalAppsScriptBridge(){
+  const hasNativeRunner = !!(
+    window.google &&
+    window.google.script &&
+    window.google.script.run
+  );
 
-  function bridgeError(message){return new Error(message||'Unable to communicate with the Apps Script backend.');}
+  if (hasNativeRunner) return;
 
-  window.addEventListener('message',function(event){
-    const data=event.data||{};
-    if(data.channel!==CHANNEL||!data.requestId)return;
-    const request=pending[data.requestId];
-    if(!request)return;
+  const CHANNEL = 'STORE_PULL_OUT_GAS_BRIDGE_V2';
+  const REQUEST_TIMEOUT_MS = 20000;
+  const pending = Object.create(null);
+
+  function bridgeError(message) {
+    return new Error(
+      message ||
+      'Unable to communicate with the Apps Script backend.'
+    );
+  }
+
+  function cleanupRequest(requestId) {
+    const request = pending[requestId];
+    if (!request) return null;
+
     clearTimeout(request.timer);
-    delete pending[data.requestId];
-    if(request.frame&&request.frame.parentNode)request.frame.parentNode.removeChild(request.frame);
-    if(data.success){
-      if(typeof request.success==='function')request.success(data.result);
-    }else if(typeof request.failure==='function'){
-      request.failure(bridgeError(data.error));
-    }else{
-      console.error(data.error||'Apps Script request failed.');
-    }
-  });
+    delete pending[requestId];
 
-  function callServer(method,args,success,failure){
-    if(!GAS_EXEC_URL||GAS_EXEC_URL.indexOf('PASTE_YOUR_GAS_EXEC_URL_HERE')!==-1){
-      const err=bridgeError('Paste the deployed Apps Script /exec URL into GAS_EXEC_URL in this GitHub index.html file.');
-      if(typeof failure==='function')failure(err);else console.error(err);
+    if (request.frame && request.frame.parentNode) {
+      request.frame.parentNode.removeChild(request.frame);
+    }
+
+    return request;
+  }
+
+  window.addEventListener('message', function(event) {
+    const data = event.data || {};
+
+    if (data.channel !== CHANNEL || !data.requestId) return;
+
+    const request = cleanupRequest(data.requestId);
+    if (!request) return;
+
+    if (data.success) {
+      if (typeof request.success === 'function') {
+        request.success(data.result);
+      }
       return;
     }
 
-    const requestId='gas_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    const frame=document.createElement('iframe');
-    frame.name='gasBridgeFrame_'+requestId;
-    frame.style.cssText='position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none';
-    frame.setAttribute('aria-hidden','true');
+    const error = bridgeError(
+      data.error || 'The Apps Script request failed.'
+    );
+
+    if (typeof request.failure === 'function') {
+      request.failure(error);
+    } else {
+      console.error(error);
+    }
+  });
+
+  function callServer(method, args, success, failure) {
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(GAS_EXEC_URL)) {
+      const error = bridgeError(
+        'The GAS_EXEC_URL is invalid. Paste the deployed Apps Script /exec URL.'
+      );
+      if (typeof failure === 'function') failure(error);
+      else console.error(error);
+      return;
+    }
+
+    const requestId =
+      'gas_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+    const frame = document.createElement('iframe');
+    frame.name = 'gasBridgeFrame_' + requestId;
+    frame.title = 'Apps Script request';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText =
+      'position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;' +
+      'border:0;opacity:0;pointer-events:none;';
     document.body.appendChild(frame);
 
-    const form=document.createElement('form');
-    form.method='POST';
-    form.action=GAS_EXEC_URL;
-    form.target=frame.name;
-    form.style.display='none';
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GAS_EXEC_URL;
+    form.target = frame.name;
+    form.acceptCharset = 'UTF-8';
+    form.style.display = 'none';
 
-    const payload=document.createElement('input');
-    payload.type='hidden';
-    payload.name='payload';
-    payload.value=JSON.stringify({
-      requestId:requestId,
-      method:String(method),
-      args:Array.prototype.slice.call(args||[]),
-      clientOrigin:window.location.origin
+    const payload = document.createElement('input');
+    payload.type = 'hidden';
+    payload.name = 'payload';
+    payload.value = JSON.stringify({
+      requestId: requestId,
+      method: String(method),
+      args: Array.prototype.slice.call(args || []),
+      clientOrigin: window.location.origin
     });
+
     form.appendChild(payload);
     document.body.appendChild(form);
 
-    pending[requestId]={
-      success:success,
-      failure:failure,
-      frame:frame,
-      timer:setTimeout(function(){
-        const active=pending[requestId];
-        if(!active)return;
-        delete pending[requestId];
-        if(active.frame&&active.frame.parentNode)active.frame.parentNode.removeChild(active.frame);
-        if(typeof active.failure==='function')active.failure(bridgeError('The Apps Script request timed out. Check the deployment URL and Web App access.'));
-      },120000)
+    pending[requestId] = {
+      success: success,
+      failure: failure,
+      frame: frame,
+      timer: setTimeout(function() {
+        const active = cleanupRequest(requestId);
+        if (!active) return;
+
+        const error = bridgeError(
+          'Backend not responding. Verify the GAS /exec URL, deploy a new version, and set Web App access to Anyone.'
+        );
+
+        if (typeof active.failure === 'function') {
+          active.failure(error);
+        } else {
+          console.error(error);
+        }
+      }, REQUEST_TIMEOUT_MS)
     };
 
-    form.submit();
-    form.remove();
+    try {
+      form.submit();
+    } catch (error) {
+      const active = cleanupRequest(requestId);
+      if (active && typeof active.failure === 'function') {
+        active.failure(bridgeError(error && error.message));
+      }
+    } finally {
+      form.remove();
+    }
   }
 
-  function makeRunner(success,failure){
+  function makeRunner(success, failure) {
     return new Proxy({}, {
-      get:function(_target,property){
-        if(property==='withSuccessHandler')return function(handler){return makeRunner(handler,failure);};
-        if(property==='withFailureHandler')return function(handler){return makeRunner(success,handler);};
-        if(property==='withUserObject')return function(){return makeRunner(success,failure);};
-        if(property==='then')return undefined;
-        return function(){callServer(String(property),arguments,success,failure);};
+      get: function(_target, property) {
+        if (property === 'withSuccessHandler') {
+          return function(handler) {
+            return makeRunner(handler, failure);
+          };
+        }
+
+        if (property === 'withFailureHandler') {
+          return function(handler) {
+            return makeRunner(success, handler);
+          };
+        }
+
+        if (property === 'withUserObject') {
+          return function() {
+            return makeRunner(success, failure);
+          };
+        }
+
+        if (property === 'then') return undefined;
+
+        return function() {
+          callServer(String(property), arguments, success, failure);
+        };
       }
     });
   }
 
-  window.google=window.google||{};
-  window.google.script=window.google.script||{};
-  Object.defineProperty(window.google.script,'run',{
-    configurable:true,
-    get:function(){return makeRunner(null,null);}
+  window.google = window.google || {};
+  window.google.script = window.google.script || {};
+
+  Object.defineProperty(window.google.script, 'run', {
+    configurable: true,
+    get: function() {
+      return makeRunner(null, null);
+    }
   });
 })();
 </script>
+
 
 <script>
 let DATA=null,USER=null,LAST_GROUPS=[],MOVEMENT_DATA=null,PULLOUT_DATA=null,STS_DATA=null;
