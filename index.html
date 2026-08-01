@@ -353,8 +353,21 @@
   .summaryCell span{display:block;font-size:.68rem;color:var(--ink-soft);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
   .summaryCell b{display:block;overflow-wrap:anywhere;}
   .responsiveTxTable .detailsBtn{white-space:nowrap;}
-  .itemCodeControl{display:flex;align-items:stretch;gap:7px;min-width:230px;}
+  .itemCodeControl{display:flex;align-items:stretch;gap:7px;min-width:280px;}
   .itemCodeControl .itemNo{min-width:0;flex:1 1 auto;}
+  .itemSearchInput{cursor:pointer;background:var(--surface);font-weight:700;text-overflow:ellipsis;}
+  .itemSearchInput::placeholder{font-weight:500;color:var(--ink-soft);}
+  .itemSearchInput:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-bg);}
+  .itemPickerModal{width:min(720px,96vw);}
+  .itemPickerHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+  .itemPickerSearch{width:100%;margin-top:14px;}
+  .itemPickerResults{display:grid;gap:8px;margin-top:14px;max-height:58dvh;overflow:auto;padding-right:2px;}
+  .itemPickerOption{width:100%;display:grid;grid-template-columns:minmax(130px,.7fr) minmax(0,1.3fr);gap:12px;align-items:center;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px 14px;color:var(--ink);}
+  .itemPickerOption:hover,.itemPickerOption:focus{border-color:var(--orange);background:var(--orange-bg);outline:none;}
+  .itemPickerCode{font-weight:800;overflow-wrap:anywhere;}
+  .itemPickerName{font-weight:800;}
+  .itemPickerMeta{font-size:.78rem;color:var(--ink-soft);margin-top:3px;overflow-wrap:anywhere;}
+  .itemPickerState{padding:28px 16px;text-align:center;color:var(--ink-soft);border:1px dashed var(--line);border-radius:11px;background:var(--line-soft);}
   .scanItemBtn{flex:0 0 auto;min-width:48px;padding:8px 10px;border:1px solid var(--line);background:var(--line-soft);color:var(--ink);font-weight:800;}
   .scanItemBtn:hover{border-color:var(--amber);background:var(--amber-bg);}
   .nativeCameraInput{position:fixed!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;}
@@ -419,6 +432,9 @@
     .itemTableResponsive td{border:0;padding:5px 0;display:grid;grid-template-columns:minmax(105px,38%) minmax(0,1fr);gap:8px;}
     .itemTableResponsive td::before{content:attr(data-label);font-size:.68rem;font-weight:800;color:var(--ink-soft);text-transform:uppercase;}
     .itemCodeControl{min-width:0;width:100%;}
+    .itemSearchInput{width:100%;}
+    .itemPickerOption{grid-template-columns:1fr;gap:5px;padding:12px;}
+    .itemPickerResults{max-height:none;}
     .scanItemBtn{min-width:54px;}
   }
 
@@ -848,12 +864,14 @@ function ensureMasterlistLoaded_(showBusy){
       MASTERLIST_LOADING=false;MASTERLIST_READY=true;
       DATA.masterlist=masterlist||[];
       refreshMasterlistDatalists_();
+      refreshOpenItemSearch_();
       if(showBusy)hideLoading();
     })
     .withFailureHandler(function(err){
       MASTERLIST_LOADING=false;
       if(showBusy)hideLoading();
-      toast('Item list is still loading. Tap the form again to retry.');
+      toast('Item list is still loading. Tap Retry in the item search.');
+      refreshOpenItemSearch_();
       console.error(err);
     })
     .getMasterlist(USER);
@@ -960,7 +978,6 @@ function bwFormHtml(){return''+
   '<h4>Items</h4>'+itemTableHtml('po')+
   '<div class="row" style="margin-top:14px">'+
     '<button class="secondary" onclick="addItemRow(\'po\',false)">+ Add item</button>'+
-    '<button class="secondary" onclick="addAndScanItem(\'po\',false)">📷 Scan item</button>'+
     '<button class="cat-amber" onclick="submitPullOut(event)">Submit pull out transaction</button>'+
   '</div>'+
   '</div>';}
@@ -978,13 +995,12 @@ function damageFormHtml(){return''+
   '<h4>Items</h4>'+itemTableHtml('damage')+
   '<div class="row" style="margin-top:14px">'+
     '<button class="secondary" onclick="addItemRow(\'damage\',true)">+ Add item</button>'+
-    '<button class="secondary" onclick="addAndScanItem(\'damage\',true)">📷 Scan item</button>'+
     '<button class="cat-rose" onclick="submitDamage(event)">Submit damage pull out</button>'+
   '</div>'+
   '</div>';}
 
 function itemTableHtml(type){return''+
-  '<div class="tableWrap"><table><thead><tr><th>Item No / Barcode / Scan</th><th>Item Name</th><th>Color</th><th>Size</th><th style="width:80px">Qty</th></tr></thead>'+
+  '<div class="tableWrap"><table><thead><tr><th>Search Item</th><th>Item Name</th><th>Color</th><th>Size</th><th style="width:80px">Qty</th></tr></thead>'+
   '<tbody id="'+type+'Items"></tbody></table></div>';}
 
 /* ── STORE-TO-STORE FORM (inside Pull Out Form module) ── */
@@ -1005,7 +1021,6 @@ function renderStsFormOnly(){
     '<h4>Items to transfer</h4>'+itemTableHtml('sts')+
     '<div class="row" style="margin-top:14px">'+
       '<button class="secondary" onclick="addItemRow(\'sts\',false)">+ Add item</button>'+
-      '<button class="secondary" onclick="addAndScanItem(\'sts\',false)">📷 Scan item</button>'+
       '<button class="cat-violet" onclick="submitStsTransfer(event)">Submit transfer request</button>'+
     '</div>'+
     '</div>';
@@ -1644,13 +1659,66 @@ function cancelStsGroup(trackingNo){if(!confirm('Cancel this transfer? All rows 
 /* ── ITEM ROWS (shared by bw / dmg / sts forms) ── */
 var BARCODE_CAPTURE_TARGET=null;
 var ZXING_LOAD_PROMISE=null;
+var ITEM_SEARCH_TARGET=null;
+
+function openItemSearch(type,id){
+  var tr=document.querySelector('#'+type+'Items tr[data-rowid="'+id+'"]');
+  if(!tr)return;
+  ITEM_SEARCH_TARGET={type:type,id:id};
+  ensureMasterlistLoaded_(false);
+  document.getElementById('modalHost').innerHTML=
+    '<div class="overlay"><div class="modal itemPickerModal">'+
+      '<div class="itemPickerHead"><div><h3>Select Item</h3><p class="modalSub">Search by item code, barcode, item name, color, or size.</p></div><button type="button" class="secondary" onclick="closeItemSearch_()">Close</button></div>'+
+      '<input id="itemPickerQuery" class="itemPickerSearch" type="search" autocomplete="off" placeholder="Search item code, barcode, or item name" oninput="renderItemSearchResults_()">'+
+      '<div id="itemPickerResults" class="itemPickerResults"></div>'+
+    '</div></div>';
+  renderItemSearchResults_();
+  setTimeout(function(){var q=document.getElementById('itemPickerQuery');if(q)q.focus();},60);
+}
+function closeItemSearch_(){ITEM_SEARCH_TARGET=null;closeModal();}
+function retryItemSearchLoad_(){
+  MASTERLIST_LOADING=false;MASTERLIST_READY=false;
+  ensureMasterlistLoaded_(false);
+  renderItemSearchResults_();
+}
+function refreshOpenItemSearch_(){if(document.getElementById('itemPickerResults'))renderItemSearchResults_();}
+function renderItemSearchResults_(){
+  var host=document.getElementById('itemPickerResults');if(!host)return;
+  if(!MASTERLIST_READY){
+    host.innerHTML='<div class="itemPickerState">'+(MASTERLIST_LOADING?'Loading item list…':'Item list is not available.<br><button type="button" class="secondary" style="margin-top:12px" onclick="retryItemSearchLoad_()">Retry</button>')+'</div>';
+    return;
+  }
+  var query=(document.getElementById('itemPickerQuery')?document.getElementById('itemPickerQuery').value:'').trim().toLowerCase();
+  if(!query){host.innerHTML='<div class="itemPickerState">Type at least one character to search the item list.</div>';return;}
+  var results=(DATA.masterlist||[]).filter(function(item){
+    return [item.itemNo,item.itemName,item.color,item.size,item.itemDescription].join(' ').toLowerCase().indexOf(query)!==-1;
+  }).slice(0,40);
+  if(!results.length){host.innerHTML='<div class="itemPickerState">No matching item found.</div>';return;}
+  host.innerHTML=results.map(function(item){
+    var meta=[item.color||'',item.size?'Size '+item.size:''].filter(Boolean).join(' · ');
+    return '<button type="button" class="itemPickerOption" data-item-no="'+escapeHtml(item.itemNo||'')+'" onclick="selectItemSearchResult_(this)">'+
+      '<span class="itemPickerCode mono">'+escapeHtml(item.itemNo||'')+'</span>'+
+      '<span><span class="itemPickerName">'+escapeHtml(item.itemName||'')+'</span><span class="itemPickerMeta">'+escapeHtml(meta||'No color / size details')+'</span></span>'+
+    '</button>';
+  }).join('');
+}
+function selectItemSearchResult_(button){
+  if(!ITEM_SEARCH_TARGET||!button)return;
+  var itemNo=String(button.getAttribute('data-item-no')||'');
+  var item=(DATA.masterlist||[]).find(function(x){return String(x.itemNo||'').toUpperCase()===itemNo.toUpperCase();});
+  var target=ITEM_SEARCH_TARGET;
+  var tr=document.querySelector('#'+target.type+'Items tr[data-rowid="'+target.id+'"]');
+  if(!tr||!item){toast('The selected item is no longer available.');return;}
+  applyItemToRow_(tr,item,true);
+  closeItemSearch_();
+}
 
 function addItemRow(type,isDamage){
   ensureMasterlistLoaded_(false);
   var id=type+'_'+Date.now()+'_'+Math.random().toString(36).slice(2);
   var tbody=document.getElementById(type+'Items');
   var main=document.createElement('tr');main.setAttribute('data-rowid',id);
-  main.innerHTML='<td><div class="itemCodeControl"><input class="itemNo" list="'+type+'ItemNoList" placeholder="Scan / type item no" data-type="'+type+'" data-rowid="'+id+'" onfocus="ensureMasterlistLoaded_(false)" onkeydown="scanEnter(event,\''+type+'\',\''+id+'\')" onchange="lookupRowItem(\''+type+'\',\''+id+'\')" oninput="lookupRowItem(\''+type+'\',\''+id+'\',true)"><button type="button" class="scanItemBtn" title="Scan barcode with camera" aria-label="Scan barcode with camera" onclick="openBarcodeCameraCapture_(this.previousElementSibling)">📷 Scan</button></div><small class="rowLookupStatus"></small></td><td><input class="itemName readonly" disabled></td><td><input class="color readonly" disabled></td><td><input class="size readonly" disabled></td><td><input class="qty" type="number" min="1" '+(isDamage?'value="1"':'placeholder="Qty"')+'></td>';
+  main.innerHTML='<td><div class="itemCodeControl"><input class="itemNo itemSearchInput" type="text" placeholder="Search item code, barcode, or item name" data-type="'+type+'" data-rowid="'+id+'" readonly onclick="openItemSearch(\''+type+'\',\''+id+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openItemSearch(\''+type+'\',\''+id+'\');}"></div><small class="rowLookupStatus"></small></td><td><input class="itemName readonly" disabled></td><td><input class="color readonly" disabled></td><td><input class="size readonly" disabled></td><td><input class="qty" type="number" min="1" '+(isDamage?'value="1"':'placeholder="Qty"')+'></td>';
   var sub=document.createElement('tr');sub.className='itemRowSub';sub.setAttribute('data-rowid',id);
   sub.innerHTML='<td colspan="5"><div class="subGrid'+(isDamage?' withDamage':'')+'"><div class="subField"><label>PO Month</label><select class="poMonth">'+monthOptions()+'</select></div><div class="subField"><label>PO Year</label><input class="poYear" type="number" value="'+new Date().getFullYear()+'"></div>'+(isDamage?'<div class="subField damageOnly"><label>Damage Remarks</label><input class="damageRemarks" placeholder="Describe the actual damage"></div><div class="subField damageOnly"><label>Actual Photo</label><div class="photoCapture"><label class="photoCaptureLabel">📷 Take / Upload Actual Photo<input class="damageImage" type="file" accept="image/*" capture="environment" onchange="previewDamagePhoto(this)"></label><img class="photoPreview" alt="Damage photo preview"><button type="button" class="secondary clearPhotoBtn hidden" onclick="clearDamagePhoto(this)">Remove photo</button><div class="photoHelp">Phone: opens the rear camera. Damage Remarks and Actual Photo are required for Damage Item.</div></div></div>':'<div></div>')+'<div class="subField"><label>&nbsp;</label><button class="danger" onclick="removeItemRow(\''+type+'\',\''+id+'\')">Remove</button></div></div></td>';
   tbody.appendChild(main);tbody.appendChild(sub);
