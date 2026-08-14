@@ -1154,16 +1154,19 @@ function buildTxAll(){
     .concat((STS_DATA.outgoing||[]).map(function(g){return tagRow(g,'STORE-TO-STORE');}))
     .concat((STS_DATA.history||[]).filter(function(g){return g.storeOrigin===USER.storeName;}).map(function(g){return tagRow(g,'STORE-TO-STORE');}));
 
+  // Store Transaction is the ACTIVE work queue: only PENDING transactions
+  // stay here. Once received, they move to Received Records instead of
+  // remaining in the middle module as read-only historical rows.
   incoming=dedupeByTracking(incoming).filter(function(g){return isPendingStatus(g.status);});
-  outgoing=dedupeByTracking(outgoing);
+  outgoing=dedupeByTracking(outgoing).filter(function(g){return isPendingStatus(g.status);});
 
   incoming.sort(function(a,b){return String(b.dateCreated).localeCompare(String(a.dateCreated));});
   outgoing.sort(function(a,b){return String(b.dateCreated).localeCompare(String(a.dateCreated));});
 
   TX_ALL.incoming=incoming;
   TX_ALL.outgoing=outgoing;
-  document.getElementById('countIn').textContent=incoming.filter(function(g){return isPendingStatus(g.status);}).length;
-  document.getElementById('countOut').textContent=outgoing.filter(function(g){return isPendingStatus(g.status);}).length;
+  document.getElementById('countIn').textContent=incoming.length;
+  document.getElementById('countOut').textContent=outgoing.length;
 }
 function isSpecialPullOutGroup_(g){
   if(!g)return false;
@@ -1188,9 +1191,11 @@ function renderDashboard(){
 
   var totalTx=all.length;
   var totalQty=all.reduce(function(s,g){return s+Number(g.totalQty||0);},0);
-  var pendingCount=all.filter(function(g){return isPendingStatus(g.status);}).length;
-  var resolvedCount=totalTx-pendingCount;
-  var overdueCount=all.filter(function(g){return isPendingStatus(g.status)&&daysAgo_(g.dateCreated)>=7;}).length;
+  // Store Transaction now represents the active PENDING queue only.
+  var pendingCount=totalTx;
+  var incomingPending=(TX_ALL.incoming||[]).length;
+  var outgoingPending=(TX_ALL.outgoing||[]).length;
+  var overdueCount=all.filter(function(g){return daysAgo_(g.dateCreated)>=7;}).length;
 
   var byCart={
     'PULL OUT':  {label:'Pull Out',       cls:'amber', pending:0, qty:0, count:0},
@@ -1208,10 +1213,10 @@ function renderDashboard(){
   document.getElementById('tx-dash').innerHTML=
     '<div class="panelHead"><h2>Dashboard</h2><span class="tag slate">Overview</span></div>'+
     '<div class="dashGrid dashGrid5">'+
-      '<div class="dashHero orange"><div class="label">Total Pull Out Transactions</div><div class="value">'+totalTx+'</div><div class="sub">All categories combined</div></div>'+
-      '<div class="dashHero"><div class="label">Total Qty Moved</div><div class="value">'+totalQty+'</div><div class="sub">Units across all transactions</div></div>'+
-      '<div class="dashHero"><div class="label">Pending</div><div class="value">'+pendingCount+'</div><div class="sub">Awaiting receipt / action</div></div>'+
-      '<div class="dashHero"><div class="label">Resolved</div><div class="value">'+resolvedCount+'</div><div class="sub">Received or cancelled</div></div>'+
+      '<div class="dashHero orange"><div class="label">Total Pending Transactions</div><div class="value">'+pendingCount+'</div><div class="sub">Active transactions only</div></div>'+
+      '<div class="dashHero"><div class="label">Total Qty Pending</div><div class="value">'+totalQty+'</div><div class="sub">Units awaiting receipt / action</div></div>'+
+      '<div class="dashHero"><div class="label">Incoming Pending</div><div class="value">'+incomingPending+'</div><div class="sub">Waiting for this store to receive</div></div>'+
+      '<div class="dashHero"><div class="label">Outgoing Pending</div><div class="value">'+outgoingPending+'</div><div class="sub">Created / sent by this store</div></div>'+
       '<div class="dashHero"><div class="label">Overdue (7+ days)</div><div class="value" style="color:var(--bad-text)">'+overdueCount+'</div><div class="sub">Still pending, needs follow-up</div></div>'+
     '</div>'+
     '<div class="catCardRow">'+
@@ -1229,20 +1234,20 @@ function renderDashboard(){
           '<div class="legendItem"><span class="sw" style="background:'+cssVar('--violet')+'"></span>Store-to-Store</div>'+
         '</div>'+
       '</div>'+
-      '<div class="chartCard"><h4>Status Split</h4><div class="chartWrap"><canvas id="dashStatusChart"></canvas></div>'+
+      '<div class="chartCard"><h4>Pending by Direction</h4><div class="chartWrap"><canvas id="dashStatusChart"></canvas></div>'+
         '<div class="legendRow">'+
-          '<div class="legendItem"><span class="sw" style="background:'+cssVar('--warn-text')+'"></span>Pending</div>'+
-          '<div class="legendItem"><span class="sw" style="background:'+cssVar('--ok-text')+'"></span>Resolved</div>'+
+          '<div class="legendItem"><span class="sw" style="background:'+cssVar('--warn-text')+'"></span>Incoming</div>'+
+          '<div class="legendItem"><span class="sw" style="background:'+cssVar('--ok-text')+'"></span>Outgoing</div>'+
         '</div>'+
       '</div>'+
     '</div>';
 
-  drawDashCharts(byCart,pendingCount,resolvedCount);
+  drawDashCharts(byCart,incomingPending,outgoingPending);
 }
 
 function cssVar(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
 
-function drawDashCharts(byCart,pendingCount,resolvedCount){
+function drawDashCharts(byCart,incomingPending,outgoingPending){
   if(typeof Chart==='undefined')return; // CDN blocked — charts skipped, number cards still show
   if(DASH_CHARTS.cat){DASH_CHARTS.cat.destroy();DASH_CHARTS.cat=null;}
   if(DASH_CHARTS.status){DASH_CHARTS.status.destroy();DASH_CHARTS.status=null;}
@@ -1264,8 +1269,8 @@ function drawDashCharts(byCart,pendingCount,resolvedCount){
     DASH_CHARTS.status=new Chart(statusCtx,{
       type:'doughnut',
       data:{
-        labels:['Pending','Resolved'],
-        datasets:[{data:[pendingCount,resolvedCount],backgroundColor:[cssVar('--warn-text'),cssVar('--ok-text')],borderWidth:0}]
+        labels:['Incoming','Outgoing'],
+        datasets:[{data:[incomingPending,outgoingPending],backgroundColor:[cssVar('--warn-text'),cssVar('--ok-text')],borderWidth:0}]
       },
       options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.label+': '+ctx.parsed;}}}},cutout:'62%',maintainAspectRatio:false,responsive:true}
     });
@@ -1458,7 +1463,7 @@ function submitDeliveryReceiveChoice(drNo){
   if(choice==='COMPLETE'){
     showLoading();
     google.script.run
-      .withSuccessHandler(function(res){hideLoading();closeModal();toast('Marked complete — '+res.updated+' row(s) updated');DELIVERY_LOADED=false;renderDeliveryIncoming();})
+      .withSuccessHandler(function(res){hideLoading();closeModal();toast('Marked complete — '+res.updated+' row(s) updated');DELIVERY_LOADED=false;RECEIVED_LOADED=false;renderDeliveryIncoming();})
       .withFailureHandler(function(err){hideLoading();showError(err);})
       .receiveDeliveryCompleteV2(USER,drNo,staffName);
   } else {
@@ -1508,7 +1513,7 @@ function confirmSaveDiscrepancy(drNo){
   var staffName=(DELIVERY_DISCREPANCY_MODE[drNo]&&DELIVERY_DISCREPANCY_MODE[drNo].staffName)||USER.username;
   showLoading();
   google.script.run
-    .withSuccessHandler(function(res){hideLoading();closeModal();toast('Saved — '+res.updated+' row(s) updated');delete DELIVERY_DISCREPANCY_MODE[drNo];DELIVERY_LOADED=false;renderDeliveryIncoming();})
+    .withSuccessHandler(function(res){hideLoading();closeModal();toast('Saved — '+res.updated+' row(s) updated');delete DELIVERY_DISCREPANCY_MODE[drNo];DELIVERY_LOADED=false;RECEIVED_LOADED=false;renderDeliveryIncoming();})
     .withFailureHandler(function(err){hideLoading();showError(err);})
     .receiveDeliveryWithDiscrepancyV2(USER,drNo,staffName,rowUpdates);
 }
@@ -1530,7 +1535,8 @@ function renderTxDirection(dir,reasonFilter,statusFilter,searchTerm){
 
   var allReasons=[].concat(DATA.pullOutReasons||[],DATA.damageReasons||[],['STORE TO STORE TRANSFER']);
   var reasonOpts=['<option value="ALL">All reasons</option>'].concat(allReasons.map(function(r){return'<option value="'+escapeHtml(r)+'"'+(r===reasonFilter?' selected':'')+'>'+escapeHtml(r)+'</option>';})).join('');
-  var statusOpts=['ALL','PENDING','OTHER'].map(function(s){return'<option value="'+s+'"'+(s===statusFilter?' selected':'')+'>'+(s==='ALL'?'All status':s==='PENDING'?'Pending only':'Resolved (received/cancelled)')+'</option>';}).join('');
+  // Historical received/resolved transactions live in Received Records.
+  var statusOpts=['ALL','PENDING'].map(function(s){return'<option value="'+s+'"'+(s===statusFilter?' selected':'')+'>'+(s==='ALL'?'All pending':'Pending only')+'</option>';}).join('');
 
   var totalQty=groups.reduce(function(s,g){return s+Number(g.totalQty||0);},0);
   var label=dir==='in'?'Pull Out Incoming':'Pull Out Outgoing';
@@ -1756,7 +1762,7 @@ function submitStsReceive(trackingNo){
   var payload={user:USER,trackingNo:trackingNo,receivedByStaff:requireStaff('stsRecvStaff'),dateReceived:val('stsRecvDate'),locationOfReceiver:val('stsRecvLocation'),overallStatus:val('stsOverallStatus'),resolveNotes:val('stsResolveNotes'),rowDetails:rowDetails};
   showLoading();
   google.script.run
-    .withSuccessHandler(function(res){hideLoading();toast('Receiving saved — '+res.updated+' row(s) updated');closeModal();TX_LOADED=false;AUDIT_LOADED=false;loadAllTx();})
+    .withSuccessHandler(function(res){hideLoading();toast('Receiving saved — '+res.updated+' row(s) updated');closeModal();TX_LOADED=false;AUDIT_LOADED=false;RECEIVED_LOADED=false;loadAllTx();})
     .withFailureHandler(function(err){hideLoading();showError(err);})
     .receiveStsGroup(payload);
 }
@@ -2259,7 +2265,7 @@ function submitReceive(trackingNo,type){
   var payload={user:USER,type:type,trackingNo:trackingNo,receivedByStaff:requireStaff('recvStaff'),dateReceived:val('recvDate'),locationOfReceiver:val('recvLocation'),status:overallStatus,resolveStatus:combinedNotes,receivedQtyMap:rqm};
   showLoading();
   google.script.run
-    .withSuccessHandler(function(res){hideLoading();toast('Receiving updated — '+res.updated+' row(s)');closeModal();TX_LOADED=false;AUDIT_LOADED=false;loadAllTx();})
+    .withSuccessHandler(function(res){hideLoading();toast('Receiving updated — '+res.updated+' row(s)');closeModal();TX_LOADED=false;AUDIT_LOADED=false;RECEIVED_LOADED=false;loadAllTx();})
     .withFailureHandler(function(err){hideLoading();showError(err);})
     .receiveGroup(payload);
 }
