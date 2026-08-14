@@ -116,12 +116,14 @@
   .pickCard.amber{border-color:var(--orange-line);} .pickCard.amber .pcIco{background:var(--orange-bg);color:var(--orange-text);}
   .pickCard.rose{border-color:var(--rose-line);} .pickCard.rose .pcIco{background:var(--rose-bg);color:var(--rose);}
   .pickCard.violet{border-color:var(--violet-line);} .pickCard.violet .pcIco{background:var(--violet-bg);color:var(--violet);}
+  .pickCard.sage{border-color:var(--sage-line);} .pickCard.sage .pcIco{background:var(--sage-bg);color:var(--sage-text);}
   .pickCard.amber.selected{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-bg);}
   .pickCard.rose.selected{border-color:var(--rose);box-shadow:0 0 0 3px var(--rose-bg);}
   .pickCard.violet.selected{border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-bg);}
+  .pickCard.sage.selected{border-color:var(--sage-text);box-shadow:0 0 0 3px var(--sage-bg);}
   .pcCheck{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;opacity:0;transition:opacity .15s;}
   .pickCard.selected .pcCheck{opacity:1;}
-  .pickCard.amber .pcCheck{color:var(--orange-text);} .pickCard.rose .pcCheck{color:var(--rose);} .pickCard.violet .pcCheck{color:var(--violet);}
+  .pickCard.amber .pcCheck{color:var(--orange-text);} .pickCard.rose .pcCheck{color:var(--rose);} .pickCard.violet .pcCheck{color:var(--violet);} .pickCard.sage .pcCheck{color:var(--sage-text);}
 
   /* ── Direction sub-tabs (Incoming / Outgoing) ── */
   .subTabRow{display:flex;gap:6px;border-bottom:2px solid var(--line);margin-bottom:18px;overflow-x:auto;}
@@ -156,6 +158,7 @@
   .formCard.amber{border-top-color:var(--orange);}
   .formCard.rose{border-top-color:var(--rose);}
   .formCard.violet{border-top-color:var(--violet);}
+  .formCard.sage{border-top-color:var(--sage-text);}
   .formCard h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin:18px 0 10px;}
 
   .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:var(--radius-sm);}
@@ -528,10 +531,16 @@
           <p class="pcName">Store-to-Store</p>
           <p class="pcDesc">Transfer stock directly to another store location, bypassing the warehouse.</p>
         </div>
+        <div class="pickCard sage" id="pick-special" onclick="selectFormType('special')">
+          <div class="pcTop"><div class="pcIco">◎</div><span class="pcCheck">Selected</span></div>
+          <p class="pcName">Special Pull Out</p>
+          <p class="pcDesc">Salary Deduction, Pull Out to Head Office, and other receiver-specific pull outs.</p>
+        </div>
       </div>
       <div id="formArea-bw" class="panel active"></div>
       <div id="formArea-dmg" class="panel"></div>
       <div id="formArea-sts" class="panel"></div>
+      <div id="formArea-special" class="panel"></div>
     </div>
 
     <!-- MODULE 2: Store Transaction — Dashboard / Incoming / Outgoing / Audit Log -->
@@ -877,7 +886,7 @@ function ensureMasterlistLoaded_(showBusy){
     .getMasterlist(USER);
 }
 function refreshMasterlistDatalists_(){
-  ['po','damage','sts'].forEach(function(type){
+  ['po','damage','sts','special'].forEach(function(type){
     var old=document.getElementById(type+'ItemNoList');
     if(!old)return;
     var wrap=document.createElement('div');
@@ -914,11 +923,11 @@ function showMainModule(name){
 /* ── PULL OUT FORM: sub-picker ── */
 function selectFormType(type){
   document.querySelectorAll('.pickCard').forEach(function(c){c.classList.remove('selected');});
-  document.querySelectorAll('#formArea-bw,#formArea-dmg,#formArea-sts').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('#formArea-bw,#formArea-dmg,#formArea-sts,#formArea-special').forEach(function(p){p.classList.remove('active');});
   document.getElementById('pick-'+type).classList.add('selected');
   document.getElementById('formArea-'+type).classList.add('active');
   if(type==='sts')refreshStsPreview();
-  if(type==='bw'||type==='dmg')refreshPoPreviews();
+  if(type==='bw'||type==='dmg'||type==='special')refreshPoPreviews();
 }
 
 function staffOptionsHtml(sel){
@@ -948,8 +957,10 @@ function requireStaff(id){var v=val(id);if(!v||v==='__ADD_STAFF__')throw new Err
 function renderAllForms(){
   document.getElementById('formArea-bw').innerHTML=bwFormHtml();
   document.getElementById('formArea-dmg').innerHTML=damageFormHtml();
+  document.getElementById('formArea-special').innerHTML=specialPullOutFormHtml_();
   initializeBackToWarehouseForm_();
   initializeDamageForm_();
+  initializeSpecialPullOutForm_();
   renderStsFormOnly();
 }
 function initializeBackToWarehouseForm_(){
@@ -980,6 +991,67 @@ function bwFormHtml(){return''+
     '<button class="secondary" onclick="addItemRow(\'po\',false)">+ Add item</button>'+
     '<button class="cat-amber" onclick="submitPullOut(event)">Submit pull out transaction</button>'+
   '</div>'+
+  '</div>';}
+
+
+function specialReasonValues_(currentValue){
+  var fixed=['Salary Deduction','Pull Out to Head Office'];
+  var all=fixed.concat(DATA.pullOutReasons||[]);
+  if(currentValue)all.push(currentValue);
+  var seen={};
+  return all.filter(function(value){
+    var text=String(value||'').trim();
+    if(!text)return false;
+    var key=text.toUpperCase();
+    if(seen[key])return false;
+    seen[key]=true;
+    return true;
+  });
+}
+function initializeSpecialPullOutForm_(){
+  var el=document.getElementById('specialReason');
+  if(!el)return;
+  var options=specialReasonValues_().map(function(r){return'<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>';}).join('');
+  el.innerHTML='<option value="">Select reason of pull out</option>'+options+'<option value="__OTHER__">Other / Enter another reason…</option>';
+  toggleSpecialReasonOther_();
+}
+function toggleSpecialReasonOther_(){
+  var select=document.getElementById('specialReason');
+  var field=document.getElementById('specialReasonOtherField');
+  if(!select||!field)return;
+  field.classList.toggle('hidden',select.value!=='__OTHER__');
+  if(select.value==='__OTHER__'){
+    var input=document.getElementById('specialReasonOther');
+    if(input)setTimeout(function(){input.focus();},30);
+  }
+}
+function getSpecialReason_(){
+  var selected=val('specialReason');
+  if(selected==='__OTHER__'){
+    var custom=val('specialReasonOther');
+    if(!custom)throw new Error('Please enter the other Reason of Pull Out.');
+    return custom;
+  }
+  if(!selected)throw new Error('Please select Reason of Pull Out.');
+  return selected;
+}
+function specialPullOutFormHtml_(){return''+
+  '<div class="panelHead"><h2>Special Pull Out</h2><span class="tag sage">Receiver-based</span></div>'+ 
+  '<div class="formCard sage">'+
+  '<div class="row">'+
+    '<div class="field"><label>Reason of Pull Out</label><select id="specialReason" onchange="toggleSpecialReasonOther_()"></select></div>'+ 
+    '<div class="field"><label>Receiver / Destination</label><input id="specialReceiver" placeholder="Complete name of receiver"></div>'+ 
+    '<div class="field"><label>Tracking No. Reference</label><input id="specialPreview" class="readonly mono" value="Login first" disabled></div>'+ 
+    '<div class="field"><label>Accountable Staff</label><select id="specialStaff" onchange="handleStaffSelect(this)">'+staffOptionsHtml()+'</select></div>'+ 
+  '</div>'+ 
+  '<div class="row hidden" id="specialReasonOtherField" style="margin-top:10px"><div class="field grow2"><label>Other Reason of Pull Out</label><input id="specialReasonOther" placeholder="Enter another reason"></div></div>'+ 
+  '<div class="row" style="margin-top:10px"><div class="field grow2"><label>Print Remarks Only</label><input id="specialPrintRemarks" placeholder="For print only, not saved"></div></div>'+ 
+  itemNoDatalistHtml('special')+
+  '<h4>Items</h4>'+itemTableHtml('special')+
+  '<div class="row" style="margin-top:14px">'+
+    '<button class="secondary" onclick="addItemRow(\'special\',false)">+ Add item</button>'+ 
+    '<button class="cat-sage" onclick="submitSpecialPullOut_(event)">Submit special pull out</button>'+ 
+  '</div>'+ 
   '</div>';}
 
 function damageFormHtml(){return''+
@@ -1093,7 +1165,15 @@ function buildTxAll(){
   document.getElementById('countIn').textContent=incoming.filter(function(g){return isPendingStatus(g.status);}).length;
   document.getElementById('countOut').textContent=outgoing.filter(function(g){return isPendingStatus(g.status);}).length;
 }
-function tagRow(g,reasonCat){g._reasonCat=reasonCat;return g;}
+function isSpecialPullOutGroup_(g){
+  if(!g)return false;
+  if(String(g.reason||'').trim().toUpperCase()==='STORE TO STORE TRANSFER')return false;
+  var destination=String(g.destination||'').trim();
+  if(!destination||destination.toUpperCase()==='WAREHOUSE')return false;
+  var isStore=(DATA.stores||[]).some(function(store){return String(store||'').trim().toUpperCase()===destination.toUpperCase();});
+  return !isStore;
+}
+function tagRow(g,reasonCat){g._reasonCat=reasonCat;g._specialPullOut=reasonCat==='PULL OUT'&&isSpecialPullOutGroup_(g);return g;}
 function dedupeByTracking(arr){
   var seen={};var out=[];
   arr.forEach(function(g){if(seen[g.trackingNo])return;seen[g.trackingNo]=true;out.push(g);});
@@ -1507,13 +1587,22 @@ function findTransactionGroup_(trackingNo,dir){
 
 function transactionActionButtonsHtml_(g,dir){
   var buttons='';
-  if(dir==='in'){
+  var pending=isPendingStatus(g.status);
+
+  if(!pending){
+    var status=String(g.status||'RESOLVED').toUpperCase();
+    var cls=status.indexOf('RECEIVED')!==-1?'received':'cancelled';
+    buttons+='<span class="pill '+cls+'">🔒 '+escapeHtml(status)+' · Read only</span> ';
+  }else if(dir==='in'){
     if(g._reasonCat==='STORE-TO-STORE'){
-      buttons+='<button class="cat-violet" onclick="openStsReceive(\''+escapeJs(g.trackingNo)+'\')">'+(isPendingStatus(g.status)?'Receive transfer':'Edit receiving')+'</button>';
+      buttons+='<button class="cat-violet" onclick="openStsReceive(\''+escapeJs(g.trackingNo)+'\')">Receive transfer</button>';
     }else{
-      buttons+='<button class="cat-sage" onclick="openReceiveByTracking(\''+escapeJs(g.trackingNo)+'\',\''+escapeJs(g.type)+'\')">'+(isPendingStatus(g.status)?'Receive':'Edit receiving')+'</button>';
+      buttons+='<button class="cat-sage" onclick="openReceiveByTracking(\''+escapeJs(g.trackingNo)+'\',\''+escapeJs(g.type)+'\')">Receive</button>';
     }
   }else{
+    if(g._specialPullOut){
+      buttons+='<button class="cat-sage" onclick="openSpecialReceive_(\''+escapeJs(g.trackingNo)+'\')">Mark Received</button> ';
+    }
     if(g._reasonCat==='STORE-TO-STORE'){
       buttons+='<button class="secondary" onclick="openStsEdit(\''+escapeJs(g.trackingNo)+'\')">Edit</button> '+
         '<button class="danger" onclick="deleteTrackingGroup(\''+escapeJs(g.trackingNo)+'\',\''+escapeJs(g.type)+'\',true)">Delete</button>';
@@ -1578,10 +1667,66 @@ function generatePdfForTracking(trackingNo,category,btn){
     .generateTrackingPdf(USER,trackingNo,category);
 }
 
+
+/* ── SPECIAL PULL OUT: ORIGIN-STORE RECEIVING CONFIRMATION ── */
+function openSpecialReceive_(trackingNo){
+  var group=findTransactionGroup_(trackingNo,'out');
+  if(!group||!group._specialPullOut){toast('Special Pull Out not found.');return;}
+  if(!isPendingStatus(group.status)){toast('This transaction is already resolved and is read-only.');return;}
+  document.getElementById('modalHost').innerHTML=
+    '<div class="overlay"><div class="modal" style="max-width:620px">'+
+      '<h3>Confirm Special Pull Out Received</h3>'+ 
+      '<p class="modalSub">After confirmation, <span class="mono">'+escapeHtml(group.trackingNo)+'</span> becomes read-only and can no longer be edited or deleted.</p>'+ 
+      '<div class="summaryGrid">'+
+        summaryCellHtml_('Receiver / Destination',group.destination||'—')+
+        summaryCellHtml_('Reason',group.reason||'—')+
+        summaryCellHtml_('Total Qty',Number(group.totalQty||0))+
+        summaryCellHtml_('Status',group.status||'PENDING')+
+      '</div>'+ 
+      '<div class="row">'+
+        '<div class="field"><label>Date Received</label><input id="specialRecvDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+ 
+        '<div class="field"><label>Confirmed / Updated By</label><select id="specialRecvStaff" onchange="handleStaffSelect(this)">'+staffOptionsHtml()+'</select></div>'+ 
+      '</div>'+ 
+      '<div class="row" style="margin-top:10px">'+
+        '<div class="field"><label>Location / Department (Optional)</label><input id="specialRecvLocation" placeholder="e.g. Head Office / HR"></div>'+ 
+        '<div class="field grow2"><label>Receiving Notes (Optional)</label><input id="specialRecvNotes" placeholder="Optional hand-over notes"></div>'+ 
+      '</div>'+ 
+      '<div class="row" style="margin-top:18px">'+
+        '<button class="cat-sage" onclick="submitSpecialReceive_(\''+escapeJs(group.trackingNo)+'\')">Confirm Received & Lock</button>'+ 
+        '<button class="secondary" onclick="closeModal()">Cancel</button>'+ 
+      '</div>'+ 
+    '</div></div>';
+}
+function submitSpecialReceive_(trackingNo){
+  var payload;
+  try{
+    payload={
+      user:USER,
+      trackingNo:trackingNo,
+      updatedByStaff:requireStaff('specialRecvStaff'),
+      dateReceived:val('specialRecvDate'),
+      locationOfReceiver:val('specialRecvLocation'),
+      notes:val('specialRecvNotes')
+    };
+  }catch(err){showError(err);return;}
+  if(!confirm('Confirm that the named Receiver / Destination has received this Special Pull Out? After saving, this transaction will be read-only.'))return;
+  showLoading();
+  google.script.run
+    .withSuccessHandler(function(res){
+      hideLoading();closeModal();
+      toast('Received by '+res.receiverName+' — transaction locked.');
+      TX_LOADED=false;AUDIT_LOADED=false;RECEIVED_LOADED=false;
+      loadAllTx();
+    })
+    .withFailureHandler(function(err){hideLoading();showError(err);})
+    .receiveSpecialPullOut(payload);
+}
+
 /* ── STS RECEIVE MODAL ── */
 function openStsReceive(trackingNo){
   var group=(STS_DATA.incoming||[]).find(function(g){return g.trackingNo===trackingNo;});
   if(!group)return;
+  if(!isPendingStatus(group.status)){toast('This transfer is already resolved and is read-only.');return;}
   var discOpts=['COMPLETE','SHORT','EXCESS','DAMAGED','MISSING'].map(function(d){return'<option value="'+d+'">'+d+'</option>';}).join('');
   var ovOpts=(DATA.statuses||['RECEIVED COMPLETE','RECEIVED WITH DISCREPANCY','SHORT RECEIVED']).map(function(s){return'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>';}).join('');
   document.getElementById('modalHost').innerHTML=
@@ -1620,6 +1765,7 @@ function submitStsReceive(trackingNo){
 function openStsEdit(trackingNo){
   var group=(STS_DATA.outgoing||[]).find(function(g){return g.trackingNo===trackingNo;});
   if(!group)return;
+  if(!isPendingStatus(group.status)){toast('This transfer is already resolved and is read-only.');return;}
   var others=(DATA.stores||[]).filter(function(s){return s!==USER.storeName;});
   var destOpts=others.map(function(s){return'<option value="'+escapeHtml(s)+'"'+(s===group.destination?' selected':'')+'>'+escapeHtml(s)+'</option>';}).join('');
   document.getElementById('modalHost').innerHTML=
@@ -1898,6 +2044,38 @@ async function handleBarcodeCameraCapture_(fileInput){
 
 /* ── PULL OUT SUBMIT ── */
 async function submitPullOut(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('po',false);if(!items.length)throw new Error('Please add at least one item.');var payload={user:USER,staffName:requireStaff('poStaff'),reason:val('poReason'),destination:val('poDestination'),printRemarks:val('poPrintRemarks'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Pull out saved',res.trackingNo);document.getElementById('formArea-bw').innerHTML=bwFormHtml();initializeBackToWarehouseForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitPullOutTransaction(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
+async function submitSpecialPullOut_(e){
+  var btn=e.target;
+  try{
+    setButtonLoading(btn,true);
+    var items=collectRows('special',false);
+    if(!items.length)throw new Error('Please add at least one item.');
+    var receiver=val('specialReceiver');
+    if(!receiver)throw new Error('Please enter Receiver / Destination name.');
+    var payload={
+      user:USER,
+      staffName:requireStaff('specialStaff'),
+      reason:getSpecialReason_(),
+      receiverName:receiver,
+      printRemarks:val('specialPrintRemarks'),
+      items:items
+    };
+    showLoading();
+    google.script.run
+      .withSuccessHandler(function(res){
+        hideLoading();setButtonLoading(btn,false);
+        toast('Special Pull Out saved — '+res.trackingNo);
+        showSuccessAnimation('Special Pull Out saved',res.trackingNo);
+        document.getElementById('formArea-special').innerHTML=specialPullOutFormHtml_();
+        initializeSpecialPullOutForm_();
+        refreshPoPreviews();
+        TX_LOADED=false;
+      })
+      .withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);})
+      .submitSpecialPullOut(payload);
+  }catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}
+}
+
 async function submitDamage(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('damage',true);if(!items.length)throw new Error('Please add at least one item.');for(var i=0;i<items.length;i++){items[i].imageData=await fileToDataUrl(items[i].file);delete items[i].file;}var payload={user:USER,staffName:requireStaff('damageStaff'),reasonDamage:val('damageReason'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Damage pull out saved',res.trackingNo);document.getElementById('formArea-dmg').innerHTML=damageFormHtml();initializeDamageForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitDamagePullOut(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
 
 /* ── DESTINATION LOGIC (Back to Warehouse form) ── */
@@ -1924,17 +2102,39 @@ function openPhotoPreview(url){document.getElementById('modalHost').innerHTML='<
 function openReceiveByTracking(trackingNo,type){
   var pool=(type==='DAMAGE PULL OUT'?(MOVEMENT_DATA.damage||[]):(MOVEMENT_DATA.outgoing||[])).concat(MOVEMENT_DATA.incoming||[]);
   var g=pool.find(function(g){return g.trackingNo===trackingNo;});
-  if(g)openReceive(g,type);
+  if(!g)return;
+  if(!isPendingStatus(g.status)){toast('This transaction is already resolved and is read-only.');return;}
+  openReceive(g,type);
 }
 function openEditByTracking(trackingNo,type){
   var pool=LAST_GROUPS;
   var group=pool.find(function(g){return g.trackingNo===trackingNo;});
   if(!group)return;
+  if(!isPendingStatus(group.status)){toast('This transaction is already resolved and is read-only.');return;}
+
   var isDamage=type==='DAMAGE PULL OUT';
-  var rOpts=(isDamage?DATA.damageReasons:DATA.pullOutReasons).map(function(r){return'<option value="'+escapeHtml(r)+'"'+(r===group.reason?' selected':'')+'>'+escapeHtml(r)+'</option>';}).join('');
-  var dOpts=DATA.stores.map(function(s){return'<option value="'+escapeHtml(s)+'"'+(s===group.destination?' selected':'')+'>'+escapeHtml(s)+'</option>';}).join('');
-  document.getElementById('modalHost').innerHTML='<div class="overlay"><div class="modal"><h3>Edit outgoing <span class="mono">'+escapeHtml(group.trackingNo)+'</span></h3><div class="row" style="margin-top:14px"><div class="field"><label>Updated By</label><select id="editStaff" onchange="handleStaffSelect(this)">'+staffOptionsHtml()+'</select></div><div class="field"><label>'+(isDamage?'Reason of Damage':'Reason of Pull Out')+'</label><select id="editReason">'+rOpts+'</select></div>'+(isDamage?'<div class="field"><label>Destination</label><input class="readonly" value="WAREHOUSE" disabled></div>':'<div class="field"><label>Destination</label><select id="editDestination">'+dOpts+'</select></div>')+'</div><h4 style="margin-top:18px">Item details</h4><div class="tableWrap"><table><thead><tr><th>Item No / Barcode</th><th>Item Name</th><th>Color</th><th>Size</th><th>Qty</th><th>PO Month</th><th>PO Year</th>'+(isDamage?'<th>Damage Remarks</th><th>Picture</th>':'')+'<th>Remove</th></tr></thead><tbody id="editRowsBody">'+group.rows.map(function(r){var p=parseMonthYear(r.monthYear);return'<tr class="editRow" data-tx="'+escapeHtml(r.transactionNo)+'"><td><input class="editItemNo" data-tx="'+escapeHtml(r.transactionNo)+'" list="editItemNoList" value="'+escapeHtml(r.itemNo)+'" onchange="lookupEditItem(this)" oninput="lookupEditItem(this,true)"></td><td><input class="editItemName readonly" value="'+escapeHtml(r.itemName)+'" disabled></td><td><input class="editColor readonly" value="'+escapeHtml(r.color)+'" disabled></td><td><input class="editSize readonly" value="'+escapeHtml(r.size)+'" disabled></td><td><input class="editQty" data-tx="'+escapeHtml(r.transactionNo)+'" type="number" min="1" value="'+r.qty+'"></td><td><select class="editMonth" data-tx="'+escapeHtml(r.transactionNo)+'">'+monthOptionsWithSelected(p.month)+'</select></td><td><input class="editYear" data-tx="'+escapeHtml(r.transactionNo)+'" type="number" value="'+p.year+'"></td>'+(isDamage?'<td><input class="editDamageRemarks" data-tx="'+escapeHtml(r.transactionNo)+'" value="'+escapeHtml(r.damageRemarks||'')+'"></td><td>'+editPictureCellHtml(r)+'</td>':'')+'<td><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)"><input type="checkbox" class="deleteTx" data-tx="'+escapeHtml(r.transactionNo)+'"> Remove</label></td></tr>';}).join('')+'</tbody></table></div><datalist id="editItemNoList">'+(DATA.masterlist||[]).map(function(i){return'<option value="'+escapeHtml(i.itemNo)+'">'+escapeHtml(i.itemName+' | '+i.color+(i.size?' | '+i.size:''))+'</option>';}).join('')+'</datalist><div class="row" style="margin-top:16px"><button class="secondary" onclick="addEditNewRow('+(isDamage?'true':'false')+')">+ Add row</button><button class="cat-amber" onclick="submitEditOutgoing(\''+escapeJs(group.trackingNo)+'\',\''+escapeJs(type)+'\')">Save edit</button><button class="danger" onclick="cancelOutgoingGroup(\''+escapeJs(group.trackingNo)+'\',\''+escapeJs(type)+'\')">Cancel transaction</button><button class="secondary" onclick="closeModal()">Close</button></div></div></div>';
+  var isSpecial=!!group._specialPullOut;
+  var reasonField='';
+  if(isSpecial){
+    reasonField='<div class="field"><label>Reason of Pull Out</label><input id="editReason" value="'+escapeHtml(group.reason||'')+'"></div>';
+  }else{
+    var rOpts=(isDamage?DATA.damageReasons:DATA.pullOutReasons).map(function(r){return'<option value="'+escapeHtml(r)+'"'+(r===group.reason?' selected':'')+'>'+escapeHtml(r)+'</option>';}).join('');
+    reasonField='<div class="field"><label>'+(isDamage?'Reason of Damage':'Reason of Pull Out')+'</label><select id="editReason">'+rOpts+'</select></div>';
+  }
+
+  var destinationField='';
+  if(isDamage){
+    destinationField='<div class="field"><label>Destination</label><input class="readonly" value="WAREHOUSE" disabled></div>';
+  }else if(isSpecial){
+    destinationField='<div class="field"><label>Receiver / Destination</label><input id="editDestination" value="'+escapeHtml(group.destination||'')+'" placeholder="Complete receiver name"></div>';
+  }else{
+    var dOpts=DATA.stores.map(function(s){return'<option value="'+escapeHtml(s)+'"'+(s===group.destination?' selected':'')+'>'+escapeHtml(s)+'</option>';}).join('');
+    destinationField='<div class="field"><label>Destination</label><select id="editDestination">'+dOpts+'</select></div>';
+  }
+
+  document.getElementById('modalHost').innerHTML='<div class="overlay"><div class="modal"><h3>Edit outgoing <span class="mono">'+escapeHtml(group.trackingNo)+'</span></h3><div class="row" style="margin-top:14px"><div class="field"><label>Updated By</label><select id="editStaff" onchange="handleStaffSelect(this)">'+staffOptionsHtml()+'</select></div>'+reasonField+destinationField+'</div><h4 style="margin-top:18px">Item details</h4><div class="tableWrap"><table><thead><tr><th>Item No / Barcode</th><th>Item Name</th><th>Color</th><th>Size</th><th>Qty</th><th>PO Month</th><th>PO Year</th>'+(isDamage?'<th>Damage Remarks</th><th>Picture</th>':'')+'<th>Remove</th></tr></thead><tbody id="editRowsBody">'+group.rows.map(function(r){var p=parseMonthYear(r.monthYear);return'<tr class="editRow" data-tx="'+escapeHtml(r.transactionNo)+'"><td><input class="editItemNo" data-tx="'+escapeHtml(r.transactionNo)+'" list="editItemNoList" value="'+escapeHtml(r.itemNo)+'" onchange="lookupEditItem(this)" oninput="lookupEditItem(this,true)"></td><td><input class="editItemName readonly" value="'+escapeHtml(r.itemName)+'" disabled></td><td><input class="editColor readonly" value="'+escapeHtml(r.color)+'" disabled></td><td><input class="editSize readonly" value="'+escapeHtml(r.size)+'" disabled></td><td><input class="editQty" data-tx="'+escapeHtml(r.transactionNo)+'" type="number" min="1" value="'+r.qty+'"></td><td><select class="editMonth" data-tx="'+escapeHtml(r.transactionNo)+'">'+monthOptionsWithSelected(p.month)+'</select></td><td><input class="editYear" data-tx="'+escapeHtml(r.transactionNo)+'" type="number" value="'+p.year+'"></td>'+(isDamage?'<td><input class="editDamageRemarks" data-tx="'+escapeHtml(r.transactionNo)+'" value="'+escapeHtml(r.damageRemarks||'')+'"></td><td>'+editPictureCellHtml(r)+'</td>':'')+'<td><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)"><input type="checkbox" class="deleteTx" data-tx="'+escapeHtml(r.transactionNo)+'"> Remove</label></td></tr>';}).join('')+'</tbody></table></div><datalist id="editItemNoList">'+(DATA.masterlist||[]).map(function(i){return'<option value="'+escapeHtml(i.itemNo)+'">'+escapeHtml(i.itemName+' | '+i.color+(i.size?' | '+i.size:''))+'</option>';}).join('')+'</datalist><div class="row" style="margin-top:16px"><button class="secondary" onclick="addEditNewRow('+(isDamage?'true':'false')+')">+ Add row</button><button class="cat-amber" onclick="submitEditOutgoing(\''+escapeJs(group.trackingNo)+'\',\''+escapeJs(type)+'\')">Save edit</button><button class="danger" onclick="cancelOutgoingGroup(\''+escapeJs(group.trackingNo)+'\',\''+escapeJs(type)+'\')">Cancel transaction</button><button class="secondary" onclick="closeModal()">Close</button></div></div></div>';
 }
+
 function editPictureCellHtml(r){
   var thumb=r.imageUrl?'<img class="photoThumb" src="'+escapeHtml(r.imageUrl)+'" onclick="openPhotoPreview(\''+escapeJs(r.imageUrl)+'\')" style="margin-bottom:4px;display:block">':'<div style="font-size:11px;color:var(--ink-soft);margin-bottom:4px">No photo</div>';
   return thumb+'<input class="editDamageImage" data-tx="'+escapeHtml(r.transactionNo)+'" type="file" accept="image/*" capture="environment" style="font-size:11px;width:110px" title="Replace photo">';
@@ -1971,6 +2171,7 @@ function deleteTrackingGroup(trackingNo,type,isSts){
   var pool=isSts?(STS_DATA.outgoing||[]).concat(STS_DATA.history||[]):LAST_GROUPS;
   var group=pool.find(function(g){return g.trackingNo===trackingNo;});
   if(!group){toast('Could not find tracking group to delete.');return;}
+  if(!isPendingStatus(group.status)){toast('This transaction is already resolved and is read-only.');return;}
 
   var deletedTx={};
   group.rows.forEach(function(r){deletedTx[r.transactionNo]=true;});
@@ -2240,7 +2441,7 @@ function openReceivedDetails(kind,trackingNo){
 }
 
 /* ── UTILITIES ── */
-function refreshPoPreviews(){if(!USER||!USER.storeName)return;google.script.run.withSuccessHandler(function(po){var p1=document.getElementById('poPreview');var p2=document.getElementById('damagePreview');if(p1)p1.value=po;if(p2)p2.value=po;}).withFailureHandler(showError).getPoTrackingPreview(USER.storeName);}
+function refreshPoPreviews(){if(!USER||!USER.storeName)return;google.script.run.withSuccessHandler(function(po){var p1=document.getElementById('poPreview');var p2=document.getElementById('damagePreview');var p3=document.getElementById('specialPreview');if(p1)p1.value=po;if(p2)p2.value=po;if(p3)p3.value=po;}).withFailureHandler(showError).getPoTrackingPreview(USER.storeName);}
 function isReceivedStatus(status){return String(status||'').toUpperCase()==='RECEIVED COMPLETE';}
 function isPendingStatus(status){return String(status||'').toUpperCase()==='PENDING';}
 function parseMonthYear(text){var raw=String(text||'');var parts=raw.split('-');var months=['January','February','March','April','May','June','July','August','September','October','November','December'];var mi=months.findIndex(function(m){return m.toUpperCase()===String(parts[0]||'').toUpperCase();});return{month:mi>=0?String(mi+1):String(new Date().getMonth()+1),year:parts[1]||String(new Date().getFullYear())};}
