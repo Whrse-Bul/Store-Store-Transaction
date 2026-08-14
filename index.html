@@ -594,7 +594,7 @@ const GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbwxvUg8ARytVbFpSAV
   );
   if (hasNativeRunner) return;
 
-  const REQUEST_TIMEOUT_MS = 30000;
+  const REQUEST_TIMEOUT_MS = 60000;
   const POLL_INTERVAL_MS = 400;
   const pending = Object.create(null);
 
@@ -635,7 +635,7 @@ const GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbwxvUg8ARytVbFpSAV
     const request=pending[requestId];
     if(!request)return;
     if(Date.now()>request.deadline){
-      finishRequest(requestId,{success:false,error:'Backend did not respond within 30 seconds. Check the mobile signal, GAS deployment, and Web App access, then tap Retry.'});
+      finishRequest(requestId,{success:false,error:'Backend did not respond within 60 seconds. Check the mobile signal, GAS deployment, and Web App access, then tap Retry.'});
       return;
     }
 
@@ -917,7 +917,7 @@ function showMainModule(name){
     var activeDeliveryTab=document.querySelector('#txSubTabs .subTab[data-dir="delivery"].active');
     if(activeDeliveryTab)renderDeliveryIncoming(true);
   }
-  if(name==='received')loadReceivedRecords(true);
+  if(name==='received')loadReceivedRecords(true,RECEIVED_ACTIVE);
 }
 
 /* ── PULL OUT FORM: sub-picker ── */
@@ -1463,7 +1463,7 @@ function submitDeliveryReceiveChoice(drNo){
   if(choice==='COMPLETE'){
     showLoading();
     google.script.run
-      .withSuccessHandler(function(res){hideLoading();closeModal();toast('Marked complete — '+res.updated+' row(s) updated');DELIVERY_LOADED=false;RECEIVED_LOADED=false;renderDeliveryIncoming();})
+      .withSuccessHandler(function(res){hideLoading();closeModal();toast('Marked complete — '+res.updated+' row(s) updated');DELIVERY_LOADED=false;invalidateReceivedRecords_();renderDeliveryIncoming();})
       .withFailureHandler(function(err){hideLoading();showError(err);})
       .receiveDeliveryCompleteV2(USER,drNo,staffName);
   } else {
@@ -1513,7 +1513,7 @@ function confirmSaveDiscrepancy(drNo){
   var staffName=(DELIVERY_DISCREPANCY_MODE[drNo]&&DELIVERY_DISCREPANCY_MODE[drNo].staffName)||USER.username;
   showLoading();
   google.script.run
-    .withSuccessHandler(function(res){hideLoading();closeModal();toast('Saved — '+res.updated+' row(s) updated');delete DELIVERY_DISCREPANCY_MODE[drNo];DELIVERY_LOADED=false;RECEIVED_LOADED=false;renderDeliveryIncoming();})
+    .withSuccessHandler(function(res){hideLoading();closeModal();toast('Saved — '+res.updated+' row(s) updated');delete DELIVERY_DISCREPANCY_MODE[drNo];DELIVERY_LOADED=false;invalidateReceivedRecords_();renderDeliveryIncoming();})
     .withFailureHandler(function(err){hideLoading();showError(err);})
     .receiveDeliveryWithDiscrepancyV2(USER,drNo,staffName,rowUpdates);
 }
@@ -1721,7 +1721,7 @@ function submitSpecialReceive_(trackingNo){
     .withSuccessHandler(function(res){
       hideLoading();closeModal();
       toast('Received by '+res.receiverName+' — transaction locked.');
-      TX_LOADED=false;AUDIT_LOADED=false;RECEIVED_LOADED=false;
+      TX_LOADED=false;AUDIT_LOADED=false;invalidateReceivedRecords_();
       loadAllTx();
     })
     .withFailureHandler(function(err){hideLoading();showError(err);})
@@ -1762,7 +1762,7 @@ function submitStsReceive(trackingNo){
   var payload={user:USER,trackingNo:trackingNo,receivedByStaff:requireStaff('stsRecvStaff'),dateReceived:val('stsRecvDate'),locationOfReceiver:val('stsRecvLocation'),overallStatus:val('stsOverallStatus'),resolveNotes:val('stsResolveNotes'),rowDetails:rowDetails};
   showLoading();
   google.script.run
-    .withSuccessHandler(function(res){hideLoading();toast('Receiving saved — '+res.updated+' row(s) updated');closeModal();TX_LOADED=false;AUDIT_LOADED=false;RECEIVED_LOADED=false;loadAllTx();})
+    .withSuccessHandler(function(res){hideLoading();toast('Receiving saved — '+res.updated+' row(s) updated');closeModal();TX_LOADED=false;AUDIT_LOADED=false;invalidateReceivedRecords_();loadAllTx();})
     .withFailureHandler(function(err){hideLoading();showError(err);})
     .receiveStsGroup(payload);
 }
@@ -2265,7 +2265,7 @@ function submitReceive(trackingNo,type){
   var payload={user:USER,type:type,trackingNo:trackingNo,receivedByStaff:requireStaff('recvStaff'),dateReceived:val('recvDate'),locationOfReceiver:val('recvLocation'),status:overallStatus,resolveStatus:combinedNotes,receivedQtyMap:rqm};
   showLoading();
   google.script.run
-    .withSuccessHandler(function(res){hideLoading();toast('Receiving updated — '+res.updated+' row(s)');closeModal();TX_LOADED=false;AUDIT_LOADED=false;RECEIVED_LOADED=false;loadAllTx();})
+    .withSuccessHandler(function(res){hideLoading();toast('Receiving updated — '+res.updated+' row(s)');closeModal();TX_LOADED=false;AUDIT_LOADED=false;invalidateReceivedRecords_();loadAllTx();})
     .withFailureHandler(function(err){hideLoading();showError(err);})
     .receiveGroup(payload);
 }
@@ -2275,34 +2275,69 @@ function submitReceive(trackingNo,type){
 /* ============================================================
    RECEIVED RECORDS
    ============================================================ */
-let RECEIVED_DATA=null;
-let RECEIVED_LOADED=false;
-let RECEIVED_LOADING=false;
+let RECEIVED_DATA={delivery:[],pullOut:[],storeToStore:[],summary:{}};
+let RECEIVED_LOADED={delivery:false,pullout:false,sts:false};
+let RECEIVED_LOADING={delivery:false,pullout:false,sts:false};
 let RECEIVED_ACTIVE='delivery';
 
-function loadReceivedRecords(forceRefresh){
-  if(forceRefresh===true)RECEIVED_LOADED=false;
-  if(RECEIVED_LOADING)return;
-  if(RECEIVED_LOADED){renderReceivedRecords(RECEIVED_ACTIVE);return;}
-  RECEIVED_LOADING=true;
+function normalizeReceivedKind_(kind){
+  kind=String(kind||'delivery').toLowerCase();
+  if(kind==='pull-out')kind='pullout';
+  if(kind==='store-to-store')kind='sts';
+  return (kind==='pullout'||kind==='sts')?kind:'delivery';
+}
+
+function invalidateReceivedRecords_(kind){
+  if(!RECEIVED_LOADED||typeof RECEIVED_LOADED!=='object'){
+    RECEIVED_LOADED={delivery:false,pullout:false,sts:false};
+  }
+  if(kind){
+    RECEIVED_LOADED[normalizeReceivedKind_(kind)]=false;
+    return;
+  }
+  RECEIVED_LOADED.delivery=false;
+  RECEIVED_LOADED.pullout=false;
+  RECEIVED_LOADED.sts=false;
+}
+
+function loadReceivedRecords(forceRefresh,kind){
+  kind=normalizeReceivedKind_(kind||RECEIVED_ACTIVE);
+  RECEIVED_ACTIVE=kind;
+  if(forceRefresh===true)RECEIVED_LOADED[kind]=false;
+  if(RECEIVED_LOADING[kind])return;
+  if(RECEIVED_LOADED[kind]){renderReceivedRecords(kind);return;}
+
+  RECEIVED_LOADING[kind]=true;
   showLoading();
   google.script.run
     .withSuccessHandler(function(data){
       hideLoading();
-      RECEIVED_LOADING=false;
-      RECEIVED_LOADED=true;
-      RECEIVED_DATA=data||{delivery:[],pullOut:[],storeToStore:[],summary:{}};
-      renderReceivedRecords(RECEIVED_ACTIVE);
+      RECEIVED_LOADING[kind]=false;
+      data=data||{};
+
+      // Merge only the requested category into the local cache. The backend
+      // intentionally does not load unrelated Received Records tabs.
+      if(kind==='delivery')RECEIVED_DATA.delivery=data.delivery||[];
+      if(kind==='pullout')RECEIVED_DATA.pullOut=data.pullOut||[];
+      if(kind==='sts')RECEIVED_DATA.storeToStore=data.storeToStore||[];
+      RECEIVED_DATA.summary=data.summary||{};
+      RECEIVED_LOADED[kind]=true;
+      renderReceivedRecords(kind);
     })
-    .withFailureHandler(function(err){hideLoading();RECEIVED_LOADING=false;RECEIVED_LOADED=false;showError(err);})
-    .getReceivedRecords(USER);
+    .withFailureHandler(function(err){
+      hideLoading();
+      RECEIVED_LOADING[kind]=false;
+      RECEIVED_LOADED[kind]=false;
+      showError(err);
+    })
+    .getReceivedRecords(USER,kind);
 }
 
 function showReceivedDirection(kind,btn){
-  RECEIVED_ACTIVE=kind||'delivery';
+  RECEIVED_ACTIVE=normalizeReceivedKind_(kind||'delivery');
   document.querySelectorAll('#receivedSubTabs .subTab').forEach(function(tab){tab.classList.remove('active');});
   if(btn)btn.classList.add('active');
-  renderReceivedRecords(RECEIVED_ACTIVE);
+  loadReceivedRecords(false,RECEIVED_ACTIVE);
 }
 
 function receivedGroupsFor_(kind){
