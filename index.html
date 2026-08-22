@@ -173,6 +173,31 @@
   .itemRowSub{background:var(--line-soft);}
   .subGrid{display:grid;grid-template-columns:150px 110px 1fr auto;gap:10px;align-items:end;padding:4px 0;}
   .subGrid.withDamage{grid-template-columns:140px 100px 1.1fr 1fr auto;}
+  .itemEntryList{display:grid;gap:12px;}
+  .itemEntryCard{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;box-shadow:0 2px 10px rgba(43,26,18,.04);}
+  .itemEntryTop{display:grid;grid-template-columns:minmax(260px,2fr) minmax(90px,.55fr) minmax(150px,.9fr) minmax(110px,.7fr);gap:10px;padding:12px;background:#fff;align-items:end;}
+  .itemEntryTop.damage{grid-template-columns:minmax(260px,2fr) minmax(150px,.8fr) minmax(110px,.65fr) minmax(220px,1.35fr);}
+  .itemEntryBottom{display:grid;grid-template-columns:minmax(220px,1.6fr) minmax(130px,.8fr) minmax(100px,.65fr) auto;gap:10px;padding:12px;background:var(--line-soft);align-items:end;border-top:1px solid var(--line);}
+  .itemEntryBottom.damage{grid-template-columns:minmax(220px,1.5fr) minmax(130px,.8fr) minmax(100px,.6fr) minmax(240px,1.5fr) auto;}
+  .itemEntryField{min-width:0;}
+  .itemEntryField label{display:block;margin-bottom:5px;}
+  .itemEntryField input,.itemEntryField select{min-width:0;}
+  .itemEntryBottom .readonly{background:#fff !important;}
+  .itemRemoveWrap{display:flex;align-items:flex-end;justify-content:flex-end;height:100%;}
+  .itemRemoveWrap button{white-space:nowrap;}
+  .deliveryDateGroup{margin-bottom:14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);overflow:hidden;}
+  .deliveryDateGroup>summary,.deliveryBoxGroup>summary{list-style:none;cursor:pointer;}
+  .deliveryDateGroup>summary::-webkit-details-marker,.deliveryBoxGroup>summary::-webkit-details-marker{display:none;}
+  .deliveryDateSummary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--line-soft);}
+  .deliveryDateTitle{font-size:15px;font-weight:800;}
+  .deliveryDateMeta{font-size:12px;color:var(--ink-soft);font-weight:700;}
+  .deliveryDateBody{padding:12px;}
+  .deliveryDrGroup{margin-bottom:10px;box-shadow:none;}
+  .deliveryBoxGroup{border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:10px;overflow:hidden;}
+  .deliveryBoxSummary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;background:#fff;}
+  .deliveryBoxTitle{font-weight:800;}
+  .deliveryBoxMeta{font-size:11.5px;color:var(--ink-soft);font-weight:700;}
+  .deliveryBoxBody{padding:0 10px 10px;}
   .subField label{display:block;margin-bottom:4px;}
 
   .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;font-size:11.5px;font-weight:700;border:1px solid transparent;white-space:nowrap;}
@@ -434,6 +459,12 @@
     .itemTableResponsive tr{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;}
     .itemTableResponsive td{border:0;padding:5px 0;display:grid;grid-template-columns:minmax(105px,38%) minmax(0,1fr);gap:8px;}
     .itemTableResponsive td::before{content:attr(data-label);font-size:.68rem;font-weight:800;color:var(--ink-soft);text-transform:uppercase;}
+    .itemEntryTop,.itemEntryBottom,.itemEntryBottom.damage{grid-template-columns:1fr 1fr;}
+    .itemEntryField.searchField{grid-column:1 / -1;}
+    .itemEntryField.damageRemarksField,.itemEntryField.damagePhotoField{grid-column:1 / -1;}
+    .itemRemoveWrap{grid-column:1 / -1;justify-content:stretch;}
+    .itemRemoveWrap button{width:100%;}
+    .deliveryDateSummary,.deliveryBoxSummary{align-items:flex-start;flex-direction:column;}
     .itemCodeControl{min-width:0;width:100%;}
     .itemSearchInput{width:100%;}
     .itemPickerOption{grid-template-columns:1fr;gap:5px;padding:12px;}
@@ -519,7 +550,7 @@
         <div class="pickCard amber" id="pick-bw" onclick="selectFormType('bw')">
           <div class="pcTop"><div class="pcIco">↩</div><span class="pcCheck">Selected</span></div>
           <p class="pcName">Back to Warehouse</p>
-          <p class="pcDesc">Clearance, slow moving, salary deduction, stock transfer &amp; other warehouse-bound pull outs.</p>
+          <p class="pcDesc">Back to Warehouse, Clearance, and Stock Transfer transactions.</p>
         </div>
         <div class="pickCard rose" id="pick-dmg" onclick="selectFormType('dmg')">
           <div class="pcTop"><div class="pcIco">⚠</div><span class="pcCheck">Selected</span></div>
@@ -533,8 +564,8 @@
         </div>
         <div class="pickCard sage" id="pick-special" onclick="selectFormType('special')">
           <div class="pcTop"><div class="pcIco">◎</div><span class="pcCheck">Selected</span></div>
-          <p class="pcName">Special Pull Out</p>
-          <p class="pcDesc">Salary Deduction, Pull Out to Head Office, and other receiver-specific pull outs.</p>
+          <p class="pcName">Store Pull Out</p>
+          <p class="pcDesc">Salary Deduction and Special Pull Out transactions assigned to a named receiver.</p>
         </div>
       </div>
       <div id="formArea-bw" class="panel active"></div>
@@ -964,13 +995,13 @@ function renderAllForms(){
   renderStsFormOnly();
 }
 function initializeBackToWarehouseForm_(){
-  fillSelect('poReason',DATA.pullOutReasons,'Select reason of pull out');
+  fillSelect('poReason',['Back To Warehouse','Clearance','Stock Transfer'],'Select reason of pull out');
   var reason=document.getElementById('poReason');
   if(reason)reason.addEventListener('change',updatePullOutDestination);
   updatePullOutDestination();
 }
 function initializeDamageForm_(){
-  fillSelect('damageReason',DATA.damageReasons,'Select reason of damage');
+  fillSelect('damageReason',['Damage Item','Production Concern'],'Select reason of damage');
   updateDamageRequirement();
 }
 function itemNoDatalistHtml(type){return'<datalist id="'+type+'ItemNoList">'+(DATA.masterlist||[]).map(function(i){return'<option value="'+escapeHtml(i.itemNo)+'">'+escapeHtml(i.itemName+' | '+i.color+(i.size?' | '+i.size:''))+'</option>';}).join('')+'</datalist>';}
@@ -981,7 +1012,6 @@ function bwFormHtml(){return''+
   '<div class="row">'+
     '<div class="field"><label>Reason of Pull Out</label><select id="poReason"></select></div>'+
     '<div class="field"><label>Destination</label><select id="poDestination"></select></div>'+
-    '<div class="field"><label>Tracking No. Reference</label><input id="poPreview" class="readonly mono" value="Login first" disabled></div>'+
     '<div class="field"><label>Accountable Staff</label><select id="poStaff" onchange="handleStaffSelect(this)">'+staffOptionsHtml()+'</select></div>'+
   '</div>'+
   '<div class="row" style="margin-top:10px"><div class="field grow2"><label>Print Remarks Only</label><input id="poPrintRemarks" placeholder="For print only, not saved"></div></div>'+
@@ -994,73 +1024,42 @@ function bwFormHtml(){return''+
   '</div>';}
 
 
-function specialReasonValues_(currentValue){
-  var fixed=['Salary Deduction','Pull Out to Head Office'];
-  var all=fixed.concat(DATA.pullOutReasons||[]);
-  if(currentValue)all.push(currentValue);
-  var seen={};
-  return all.filter(function(value){
-    var text=String(value||'').trim();
-    if(!text)return false;
-    var key=text.toUpperCase();
-    if(seen[key])return false;
-    seen[key]=true;
-    return true;
-  });
+function specialReasonValues_(){
+  return ['Salary Deduction','Special Pull Out'];
 }
 function initializeSpecialPullOutForm_(){
   var el=document.getElementById('specialReason');
   if(!el)return;
-  var options=specialReasonValues_().map(function(r){return'<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>';}).join('');
-  el.innerHTML='<option value="">Select reason of pull out</option>'+options+'<option value="__OTHER__">Other / Enter another reason…</option>';
-  toggleSpecialReasonOther_();
+  el.innerHTML='<option value="">Select reason of pull out</option>'+specialReasonValues_().map(function(r){return'<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>';}).join('');
 }
-function toggleSpecialReasonOther_(){
-  var select=document.getElementById('specialReason');
-  var field=document.getElementById('specialReasonOtherField');
-  if(!select||!field)return;
-  field.classList.toggle('hidden',select.value!=='__OTHER__');
-  if(select.value==='__OTHER__'){
-    var input=document.getElementById('specialReasonOther');
-    if(input)setTimeout(function(){input.focus();},30);
-  }
-}
+function toggleSpecialReasonOther_(){ return; }
 function getSpecialReason_(){
   var selected=val('specialReason');
-  if(selected==='__OTHER__'){
-    var custom=val('specialReasonOther');
-    if(!custom)throw new Error('Please enter the other Reason of Pull Out.');
-    return custom;
-  }
-  if(!selected)throw new Error('Please select Reason of Pull Out.');
+  if(specialReasonValues_().indexOf(selected)===-1)throw new Error('Please select Salary Deduction or Special Pull Out.');
   return selected;
 }
 function specialPullOutFormHtml_(){return''+
-  '<div class="panelHead"><h2>Special Pull Out</h2><span class="tag sage">Receiver-based</span></div>'+ 
+  '<div class="panelHead"><h2>Store Pull Out</h2><span class="tag sage">Receiver-based</span></div>'+ 
   '<div class="formCard sage">'+
   '<div class="row">'+
-    '<div class="field"><label>Reason of Pull Out</label><select id="specialReason" onchange="toggleSpecialReasonOther_()"></select></div>'+ 
+    '<div class="field"><label>Reason of Pull Out</label><select id="specialReason"></select></div>'+ 
     '<div class="field"><label>Receiver / Destination</label><input id="specialReceiver" placeholder="Complete name of receiver"></div>'+ 
-    '<div class="field"><label>Tracking No. Reference</label><input id="specialPreview" class="readonly mono" value="Login first" disabled></div>'+ 
     '<div class="field"><label>Accountable Staff</label><select id="specialStaff" onchange="handleStaffSelect(this)">'+staffOptionsHtml()+'</select></div>'+ 
   '</div>'+ 
-  '<div class="row hidden" id="specialReasonOtherField" style="margin-top:10px"><div class="field grow2"><label>Other Reason of Pull Out</label><input id="specialReasonOther" placeholder="Enter another reason"></div></div>'+ 
   '<div class="row" style="margin-top:10px"><div class="field grow2"><label>Print Remarks Only</label><input id="specialPrintRemarks" placeholder="For print only, not saved"></div></div>'+ 
   itemNoDatalistHtml('special')+
   '<h4>Items</h4>'+itemTableHtml('special')+
   '<div class="row" style="margin-top:14px">'+
-    '<button class="secondary" onclick="addItemRow(\'special\',false)">+ Add item</button>'+ 
-    '<button class="cat-sage" onclick="submitSpecialPullOut_(event)">Submit special pull out</button>'+ 
+    '<button class="secondary" data-type="special" onclick="addItemRow(this.dataset.type,false)">+ Add item</button>'+ 
+    '<button class="cat-sage" onclick="submitSpecialPullOut_(event)">Submit store pull out</button>'+ 
   '</div>'+ 
   '</div>';}
-
 function damageFormHtml(){return''+
   '<div class="panelHead"><h2>Damage Pull Out</h2><span class="tag rose">Damage</span></div>'+
   '<div class="formCard rose">'+
   '<div class="row">'+
     '<div class="field"><label>Reason of Damage</label><select id="damageReason" onchange="updateDamageRequirement()"></select></div>'+
     '<div class="field"><label>Destination</label><input class="readonly" value="WAREHOUSE" disabled></div>'+
-    '<div class="field"><label>Tracking No. Reference</label><input id="damagePreview" class="readonly mono" value="Login first" disabled></div>'+
     '<div class="field"><label>Accountable Staff</label><select id="damageStaff" onchange="handleStaffSelect(this)">'+staffOptionsHtml()+'</select></div>'+
   '</div>'+
   itemNoDatalistHtml('damage')+
@@ -1071,10 +1070,9 @@ function damageFormHtml(){return''+
   '</div>'+
   '</div>';}
 
-function itemTableHtml(type){return''+
-  '<div class="tableWrap"><table><thead><tr><th>Search Item</th><th>Item Name</th><th>Color</th><th>Size</th><th style="width:80px">Qty</th></tr></thead>'+
-  '<tbody id="'+type+'Items"></tbody></table></div>';}
-
+function itemTableHtml(type){
+  return '<div class="itemEntryList" id="'+type+'Items"></div>';
+}
 /* ── STORE-TO-STORE FORM (inside Pull Out Form module) ── */
 function renderStsFormOnly(){
   var others=(DATA.stores||[]).filter(function(s){return s!==USER.storeName;});
@@ -1360,7 +1358,12 @@ function renderDeliveryIncoming(forceRefresh){
 
 function renderDeliveryGroups(){
   var groups=((DELIVERY_DATA&&DELIVERY_DATA.groups)||[]).filter(function(g){return !g.isReceived;});
-  var totalQtyAll=(DELIVERY_DATA&&DELIVERY_DATA.totalQty)||0;
+  groups.sort(function(a,b){
+    var byDate=String(b.dispatchDate||'').localeCompare(String(a.dispatchDate||''));
+    return byDate||naturalCompare_(a.drNo,b.drNo);
+  });
+  var totalQtyAll=groups.reduce(function(sum,g){return sum+Number(g.totalQty||0);},0);
+  var dateGroups=buildDeliveryDateGroups_(groups);
 
   document.getElementById('tx-delivery').innerHTML=
     '<div class="panelHead"><h2>Delivery Incoming</h2><span class="tag sage">From Warehouse Fulfillment</span></div>'+
@@ -1368,55 +1371,86 @@ function renderDeliveryGroups(){
       '<div class="statCard"><div class="label">DR Tracking Groups</div><div class="value">'+groups.length+'</div></div>'+
       '<div class="statCard"><div class="label">Total Qty</div><div class="value">'+totalQtyAll+'</div></div>'+
     '</div>'+
-    (groups.length?groups.map(function(g){return deliveryGroupHtml(g);}).join(''):emptyState('No delivery records found for your store.'));
+    (dateGroups.length?dateGroups.map(function(bucket){return deliveryDateGroupHtml_(bucket);}).join(''):emptyState('No delivery records found for your store.'));
 }
-
 var DELIVERY_REMARKS_PRESETS=['Complete Received','Short Qty','Excess Qty','Damaged Item','Wrong Item','Missing Item'];
+
+function naturalCompare_(a,b){
+  return String(a||'').localeCompare(String(b||''),undefined,{numeric:true,sensitivity:'base'});
+}
+function buildDeliveryDateGroups_(groups){
+  var map={};
+  (groups||[]).forEach(function(g){
+    var key=String(g.dispatchDate||'NO DATE');
+    if(!map[key])map[key]={dispatchDate:g.dispatchDate||'',groups:[],drCount:0,boxCount:0,totalQty:0};
+    var bucket=map[key];
+    bucket.groups.push(g);bucket.drCount++;bucket.boxCount+=Number(g.totalBoxCt||0);bucket.totalQty+=Number(g.totalQty||0);
+  });
+  return Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return String(b.dispatchDate||'').localeCompare(String(a.dispatchDate||''));});
+}
+function deliveryDateGroupHtml_(bucket){
+  var label=bucket.dispatchDate?formatDisplayDate(bucket.dispatchDate):'No Dispatch Date';
+  return '<details class="deliveryDateGroup" open><summary><div class="deliveryDateSummary">'+
+    '<div><div class="deliveryDateTitle">'+escapeHtml(label)+'</div><div class="deliveryDateMeta">Dispatch Date</div></div>'+
+    '<div class="deliveryDateMeta">'+bucket.drCount+' DR'+(bucket.drCount===1?'':'s')+' · '+bucket.boxCount+' Box'+(bucket.boxCount===1?'':'es')+' · '+bucket.totalQty+' Qty</div>'+
+  '</div></summary><div class="deliveryDateBody">'+bucket.groups.map(function(g){return deliveryGroupHtml(g);}).join('')+'</div></details>';
+}
+function deliveryBoxGroups_(g){
+  var map={};
+  (g.rows||[]).slice().sort(function(a,b){
+    var byBox=naturalCompare_(a.boxNo,b.boxNo);if(byBox)return byBox;
+    var byItem=String(a.itemName||'').localeCompare(String(b.itemName||''),undefined,{sensitivity:'base'});if(byItem)return byItem;
+    return naturalCompare_(a.barcode,b.barcode);
+  }).forEach(function(r){
+    var key=String(r.boxNo||'UNASSIGNED');
+    if(!map[key])map[key]={boxNo:r.boxNo||'Unassigned',rows:[],totalQty:0};
+    map[key].rows.push(r);map[key].totalQty+=Number(r.qty||0);
+  });
+  return Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return naturalCompare_(a.boxNo,b.boxNo);});
+}
 
 function deliveryGroupHtml(g){
   var inDiscrepancyMode=!!DELIVERY_DISCREPANCY_MODE[g.drNo];
   var statusChip=g.isReceived?'<span class="catChip sage">RECEIVED</span>':'<span class="catChip amber">PENDING</span>';
+  var receiveBtn='';
+  if(g.isReceived){
+    receiveBtn='<span class="muted" style="font-size:12px">Received by '+escapeHtml(g.receivedBy)+' on '+escapeHtml(formatDisplayDateTime(g.dateReceived))+'</span>';
+  }else if(inDiscrepancyMode){
+    receiveBtn='<button class="cat-amber" data-dr="'+escapeHtml(g.drNo)+'" onclick="openSaveDiscrepancyConfirm(this.dataset.dr)">Save Final Changes</button> '+
+      '<button class="secondary" data-dr="'+escapeHtml(g.drNo)+'" onclick="cancelDiscrepancyMode(this.dataset.dr)">Cancel</button>';
+  }else{
+    receiveBtn='<button class="cat-sage" data-dr="'+escapeHtml(g.drNo)+'" onclick="openDeliveryReceiveModal(this.dataset.dr)">Receive</button>';
+  }
+  var boxes=deliveryBoxGroups_(g);
 
-  var receiveBtn=g.isReceived
-    ? '<span class="muted" style="font-size:12px">Received by '+escapeHtml(g.receivedBy)+' on '+escapeHtml(formatDisplayDateTime(g.dateReceived))+'</span>'
-    : (inDiscrepancyMode
-        ? '<button class="cat-amber" onclick="openSaveDiscrepancyConfirm(\''+escapeJs(g.drNo)+'\')">Save Final Changes</button> <button class="secondary" onclick="cancelDiscrepancyMode(\''+escapeJs(g.drNo)+'\')">Cancel</button>'
-        : '<button class="cat-sage" onclick="openDeliveryReceiveModal(\''+escapeJs(g.drNo)+'\')">Receive</button>');
-
-  return '<details class="group"><summary style="display:block;padding-bottom:0">'+
+  return '<details class="group deliveryDrGroup"><summary style="display:block;padding-bottom:0">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;padding:2px 0 10px">'+
       '<div>'+statusChip+
-        '<div style="margin-top:6px;display:flex;gap:18px;flex-wrap:wrap">'+
-          '<div><div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">Dispatch Date</div><div style="font-weight:700">'+escapeHtml(formatDisplayDate(g.dispatchDate))+'</div></div>'+
-          '<div><div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">DR Tracking No.</div><div class="trk" style="font-weight:800">'+escapeHtml(g.drNo)+'</div></div>'+
-        '</div>'+
+        '<div style="margin-top:6px"><div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">DR Tracking No.</div><div class="trk" style="font-weight:800">'+escapeHtml(g.drNo)+'</div></div>'+
       '</div>'+
       '<div style="text-align:right">'+
         '<div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:flex-end">'+
           '<div><div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">Total Qty</div><div style="font-weight:800;font-size:18px">'+g.totalQty+'</div></div>'+
           '<div><div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">Total Box Ct.</div><div style="font-weight:800;font-size:18px">'+g.totalBoxCt+'</div></div>'+
-        '</div>'+
-        '<div style="margin-top:8px">'+receiveBtn+'</div>'+
+        '</div><div style="margin-top:8px">'+receiveBtn+'</div>'+
       '</div>'+
     '</div>'+
-  '</summary>'+
-  '<div class="groupBody">'+
-    '<div class="tableWrap"><table class="deliveryTable"><thead><tr><th>Box No</th><th>Reason</th><th>Barcode</th><th>Item Name</th><th>Color</th><th>Size</th><th>Qty</th><th>Actual Qty</th><th>Remarks</th></tr></thead><tbody>'+
-    g.rows.map(function(r){
-      var editable=inDiscrepancyMode&&!g.isReceived;
-      var actualQtyCell=editable
-        ? '<input type="number" min="0" class="deliveryActualQty" data-dr="'+escapeJs(g.drNo)+'" data-row="'+r.sheetRowNo+'" value="'+r.actualQty+'" style="width:70px">'
-        : r.actualQty;
-      var remarksCell=editable
-        ? deliveryRemarksCellHtml(g.drNo,r.sheetRowNo,r.remarks)
-        : escapeHtml(r.remarks);
-      return '<tr><td>'+escapeHtml(r.boxNo)+'</td><td>'+escapeHtml(r.reason)+'</td><td class="mono">'+escapeHtml(r.barcode)+'</td><td>'+escapeHtml(r.itemName)+'</td><td>'+escapeHtml(r.color)+'</td><td>'+escapeHtml(r.size)+'</td><td>'+r.qty+'</td><td>'+actualQtyCell+'</td><td>'+remarksCell+'</td></tr>';
-    }).join('')+
-    '</tbody></table></div>'+
-  '</div>'+
-  '</details>';
+  '</summary><div class="groupBody">'+boxes.map(function(box){return deliveryBoxGroupHtml_(g,box,inDiscrepancyMode);}).join('')+'</div></details>';
 }
-
+function deliveryBoxGroupHtml_(g,box,inDiscrepancyMode){
+  var rows=box.rows||[];
+  return '<details class="deliveryBoxGroup"><summary><div class="deliveryBoxSummary">'+
+    '<div><div class="deliveryBoxTitle">Box '+escapeHtml(box.boxNo||'Unassigned')+'</div><div class="deliveryBoxMeta">Sorted by Item Name, then Barcode</div></div>'+
+    '<div class="deliveryBoxMeta">'+rows.length+' Item Row'+(rows.length===1?'':'s')+' · '+box.totalQty+' Qty</div>'+
+  '</div></summary><div class="deliveryBoxBody"><div class="tableWrap"><table class="deliveryTable"><thead><tr><th>Item Name</th><th>Barcode</th><th>Reason</th><th>Color</th><th>Size</th><th>Qty</th><th>Actual Qty</th><th>Remarks</th></tr></thead><tbody>'+
+    rows.map(function(r){
+      var editable=inDiscrepancyMode&&!g.isReceived;
+      var actualQtyCell=editable?'<input type="number" min="0" class="deliveryActualQty" data-dr="'+escapeHtml(g.drNo)+'" data-row="'+r.sheetRowNo+'" value="'+r.actualQty+'" style="width:70px">':r.actualQty;
+      var remarksCell=editable?deliveryRemarksCellHtml(g.drNo,r.sheetRowNo,r.remarks):escapeHtml(r.remarks);
+      return '<tr><td>'+escapeHtml(r.itemName)+'</td><td class="mono">'+escapeHtml(r.barcode)+'</td><td>'+escapeHtml(r.reason)+'</td><td>'+escapeHtml(r.color)+'</td><td>'+escapeHtml(r.size)+'</td><td>'+r.qty+'</td><td>'+actualQtyCell+'</td><td>'+remarksCell+'</td></tr>';
+    }).join('')+
+  '</tbody></table></div></div></details>';
+}
 function deliveryRemarksCellHtml(drNo,sheetRowNo,currentValue){
   var isPreset=DELIVERY_REMARKS_PRESETS.indexOf(currentValue)!==-1;
   var selectedValue=isPreset?currentValue:'OTHER';
@@ -1677,11 +1711,11 @@ function generatePdfForTracking(trackingNo,category,btn){
 /* ── SPECIAL PULL OUT: ORIGIN-STORE RECEIVING CONFIRMATION ── */
 function openSpecialReceive_(trackingNo){
   var group=findTransactionGroup_(trackingNo,'out');
-  if(!group||!group._specialPullOut){toast('Special Pull Out not found.');return;}
+  if(!group||!group._specialPullOut){toast('Store Pull Out not found.');return;}
   if(!isPendingStatus(group.status)){toast('This transaction is already resolved and is read-only.');return;}
   document.getElementById('modalHost').innerHTML=
     '<div class="overlay"><div class="modal" style="max-width:620px">'+
-      '<h3>Confirm Special Pull Out Received</h3>'+ 
+      '<h3>Confirm Store Pull Out Received</h3>'+ 
       '<p class="modalSub">After confirmation, <span class="mono">'+escapeHtml(group.trackingNo)+'</span> becomes read-only and can no longer be edited or deleted.</p>'+ 
       '<div class="summaryGrid">'+
         summaryCellHtml_('Receiver / Destination',group.destination||'—')+
@@ -1715,7 +1749,7 @@ function submitSpecialReceive_(trackingNo){
       notes:val('specialRecvNotes')
     };
   }catch(err){showError(err);return;}
-  if(!confirm('Confirm that the named Receiver / Destination has received this Special Pull Out? After saving, this transaction will be read-only.'))return;
+  if(!confirm('Confirm that the named Receiver / Destination has received this Store Pull Out? After saving, this transaction will be read-only.'))return;
   showLoading();
   google.script.run
     .withSuccessHandler(function(res){
@@ -1814,7 +1848,7 @@ var ZXING_LOAD_PROMISE=null;
 var ITEM_SEARCH_TARGET=null;
 
 function openItemSearch(type,id){
-  var tr=document.querySelector('#'+type+'Items tr[data-rowid="'+id+'"]');
+  var tr=document.querySelector('#'+type+'Items .itemEntryCard[data-rowid="'+id+'"]');
   if(!tr)return;
   ITEM_SEARCH_TARGET={type:type,id:id};
   ensureMasterlistLoaded_(false);
@@ -1859,7 +1893,7 @@ function selectItemSearchResult_(button){
   var itemNo=String(button.getAttribute('data-item-no')||'');
   var item=(DATA.masterlist||[]).find(function(x){return String(x.itemNo||'').toUpperCase()===itemNo.toUpperCase();});
   var target=ITEM_SEARCH_TARGET;
-  var tr=document.querySelector('#'+target.type+'Items tr[data-rowid="'+target.id+'"]');
+  var tr=document.querySelector('#'+target.type+'Items .itemEntryCard[data-rowid="'+target.id+'"]');
   if(!tr||!item){toast('The selected item is no longer available.');return;}
   applyItemToRow_(tr,item,true);
   closeItemSearch_();
@@ -1868,25 +1902,63 @@ function selectItemSearchResult_(button){
 function addItemRow(type,isDamage){
   ensureMasterlistLoaded_(false);
   var id=type+'_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-  var tbody=document.getElementById(type+'Items');
-  var main=document.createElement('tr');main.setAttribute('data-rowid',id);
-  main.innerHTML='<td><div class="itemCodeControl"><input class="itemNo itemSearchInput" type="text" placeholder="Search item code, barcode, or item name" data-type="'+type+'" data-rowid="'+id+'" readonly onclick="openItemSearch(\''+type+'\',\''+id+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openItemSearch(\''+type+'\',\''+id+'\');}"></div><small class="rowLookupStatus"></small></td><td><input class="itemName readonly" disabled></td><td><input class="color readonly" disabled></td><td><input class="size readonly" disabled></td><td><input class="qty" type="number" min="1" '+(isDamage?'value="1"':'placeholder="Qty"')+'></td>';
-  var sub=document.createElement('tr');sub.className='itemRowSub';sub.setAttribute('data-rowid',id);
-  sub.innerHTML='<td colspan="5"><div class="subGrid'+(isDamage?' withDamage':'')+'"><div class="subField"><label>PO Month</label><select class="poMonth">'+monthOptions()+'</select></div><div class="subField"><label>PO Year</label><input class="poYear" type="number" value="'+new Date().getFullYear()+'"></div>'+(isDamage?'<div class="subField damageOnly"><label>Damage Remarks</label><input class="damageRemarks" placeholder="Describe the actual damage"></div><div class="subField damageOnly"><label>Actual Photo</label><div class="photoCapture"><label class="photoCaptureLabel">📷 Take / Upload Actual Photo<input class="damageImage" type="file" accept="image/*" capture="environment" onchange="previewDamagePhoto(this)"></label><img class="photoPreview" alt="Damage photo preview"><button type="button" class="secondary clearPhotoBtn hidden" onclick="clearDamagePhoto(this)">Remove photo</button><div class="photoHelp">Phone: opens the rear camera. Damage Remarks and Actual Photo are required for Damage Item.</div></div></div>':'<div></div>')+'<div class="subField"><label>&nbsp;</label><button class="danger" onclick="removeItemRow(\''+type+'\',\''+id+'\')">Remove</button></div></div></td>';
-  tbody.appendChild(main);tbody.appendChild(sub);
-  if(isDamage)updateDamageRequirement();
-  setTimeout(function(){main.querySelector('.itemNo').focus();},50);
+  var host=document.getElementById(type+'Items');
+  if(!host)return;
+  var card=document.createElement('div');
+  card.className='itemEntryCard';
+  card.setAttribute('data-rowid',id);
+
+  var searchHtml='<div class="itemEntryField searchField"><label>Search Item</label><div class="itemCodeControl"><input class="itemNo itemSearchInput" type="text" placeholder="Search item code, barcode, or item name" data-type="'+type+'" data-rowid="'+id+'" readonly onclick="openItemSearch(this.dataset.type,this.dataset.rowid)" onkeydown="if(event.key===&quot;Enter&quot;||event.key===&quot; &quot;){event.preventDefault();openItemSearch(this.dataset.type,this.dataset.rowid);}"></div><small class="rowLookupStatus"></small></div>';
+
+  var top='';
+  var bottom='';
+  if(isDamage){
+    top='<div class="itemEntryTop damage">'+
+      searchHtml+
+      '<input class="qty" type="hidden" value="1">'+
+      '<div class="itemEntryField"><label>PO Month</label><select class="poMonth">'+monthOptions()+'</select></div>'+
+      '<div class="itemEntryField"><label>PO Year</label><input class="poYear" type="number" value="'+new Date().getFullYear()+'"></div>'+
+      '<div class="itemEntryField damageRemarksField"><label>Damage Remarks</label><input class="damageRemarks" placeholder="Describe the actual damage"></div>'+
+    '</div>';
+    bottom='<div class="itemEntryBottom damage">'+
+      '<div class="itemEntryField"><label>Item Name</label><input class="itemName readonly" disabled></div>'+
+      '<div class="itemEntryField"><label>Color</label><input class="color readonly" disabled></div>'+
+      '<div class="itemEntryField"><label>Size</label><input class="size readonly" disabled></div>'+
+      '<div class="itemEntryField damagePhotoField"><label>Photo</label><div class="photoCapture"><label class="photoCaptureLabel">📷 Take / Upload Photo<input class="damageImage" type="file" accept="image/*" capture="environment" onchange="previewDamagePhoto(this)"></label><img class="photoPreview" alt="Damage photo preview"><button type="button" class="secondary clearPhotoBtn hidden" onclick="clearDamagePhoto(this)">Remove photo</button><div class="photoHelp">Required for Damage Item; optional for Production Concern.</div></div></div>'+
+      '<div class="itemRemoveWrap"><button class="danger" type="button" data-type="'+type+'" data-rowid="'+id+'" onclick="removeItemRow(this.dataset.type,this.dataset.rowid)">Remove</button></div>'+
+    '</div>';
+  }else{
+    top='<div class="itemEntryTop">'+
+      searchHtml+
+      '<div class="itemEntryField"><label>Qty</label><input class="qty" type="number" min="1" placeholder="Qty"></div>'+
+      '<div class="itemEntryField"><label>PO Month</label><select class="poMonth">'+monthOptions()+'</select></div>'+
+      '<div class="itemEntryField"><label>PO Year</label><input class="poYear" type="number" value="'+new Date().getFullYear()+'"></div>'+
+    '</div>';
+    bottom='<div class="itemEntryBottom">'+
+      '<div class="itemEntryField"><label>Item Name</label><input class="itemName readonly" disabled></div>'+
+      '<div class="itemEntryField"><label>Color</label><input class="color readonly" disabled></div>'+
+      '<div class="itemEntryField"><label>Size</label><input class="size readonly" disabled></div>'+
+      '<div class="itemRemoveWrap"><button class="danger" type="button" data-type="'+type+'" data-rowid="'+id+'" onclick="removeItemRow(this.dataset.type,this.dataset.rowid)">Remove</button></div>'+
+    '</div>';
+  }
+
+  card.innerHTML=top+bottom;
+  host.appendChild(card);
+  setTimeout(function(){var input=card.querySelector('.itemNo');if(input)input.focus();},50);
 }
 function addAndScanItem(type,isDamage){
   addItemRow(type,isDamage);
   window.setTimeout(function(){
-    var rows=document.querySelectorAll('#'+type+'Items tr[data-rowid]:not(.itemRowSub)');
+    var rows=document.querySelectorAll('#'+type+'Items .itemEntryCard[data-rowid]');
     var row=rows.length?rows[rows.length-1]:null;
     var input=row?row.querySelector('.itemNo'):null;
     if(input)openBarcodeCameraCapture_(input);
   },80);
 }
-function removeItemRow(type,id){document.querySelectorAll('#'+type+'Items tr[data-rowid="'+id+'"]').forEach(function(row){row.remove();});}
+function removeItemRow(type,id){
+  var row=document.querySelector('#'+type+'Items .itemEntryCard[data-rowid="'+id+'"]');
+  if(row)row.remove();
+}
 function scanEnter(e,type,id){if(e.key==='Enter'){e.preventDefault();lookupRowItem(type,id);}}
 function setRowLookupStatus_(tr,message,isError){var el=tr?tr.querySelector('.rowLookupStatus'):null;if(!el)return;el.textContent=message||'';el.style.color=isError?'var(--bad-text)':'var(--ink-soft)';}
 function clearRowItem_(tr){if(!tr)return;tr.querySelector('.itemName').value='';tr.querySelector('.color').value='';tr.querySelector('.size').value='';}
@@ -1897,10 +1969,10 @@ function applyItemToRow_(tr,item,focusQty){
   tr.querySelector('.color').value=item.color||'';
   tr.querySelector('.size').value=item.size||'';
   setRowLookupStatus_(tr,'Item verified.',false);
-  if(focusQty)tr.querySelector('.qty').focus();
+  if(focusQty){var qtyInput=tr.querySelector('.qty');if(qtyInput&&qtyInput.type!=='hidden')qtyInput.focus();}
 }
 function lookupRowItem(type,id,silent){
-  var tr=document.querySelector('#'+type+'Items tr[data-rowid="'+id+'"]');if(!tr)return;
+  var tr=document.querySelector('#'+type+'Items .itemEntryCard[data-rowid="'+id+'"]');if(!tr)return;
   var itemNo=tr.querySelector('.itemNo').value.trim();
   if(!itemNo){clearRowItem_(tr);setRowLookupStatus_(tr,'',false);return;}
 
@@ -1927,15 +1999,24 @@ function lookupRowItem(type,id,silent){
     .lookupMasterItem(USER,itemNo);
 }
 function collectRows(type,isDamage){
-  var rows=Array.from(document.querySelectorAll('#'+type+'Items tr[data-rowid]:not(.itemRowSub)'));var items=[];
+  var rows=Array.from(document.querySelectorAll('#'+type+'Items .itemEntryCard[data-rowid]'));var items=[];
   var reason=isDamage?val('damageReason').toUpperCase():'';var requireDamage=isDamage&&reason.indexOf('DAMAGE ITEM')!==-1;
   for(var i=0;i<rows.length;i++){
-    var tr=rows[i];var id=tr.getAttribute('data-rowid');var sub=document.querySelector('#'+type+'Items tr.itemRowSub[data-rowid="'+id+'"]');
-    var itemNo=tr.querySelector('.itemNo').value.trim();var itemName=tr.querySelector('.itemName').value.trim();var qty=Number(tr.querySelector('.qty').value||0);var poMonth=sub.querySelector('.poMonth').value;var poYear=sub.querySelector('.poYear').value;
+    var tr=rows[i];
+    var itemNo=tr.querySelector('.itemNo').value.trim();
+    var itemName=tr.querySelector('.itemName').value.trim();
+    var qty=Number(tr.querySelector('.qty').value||0);
+    var poMonth=tr.querySelector('.poMonth').value;
+    var poYear=tr.querySelector('.poYear').value;
     if(!itemNo&&!qty)continue;
     if(!itemNo||!itemName||qty<=0||!poMonth||!poYear)throw new Error('Please complete all required item row details.');
     var item={itemNo:itemNo,qty:qty,poMonth:poMonth,poYear:poYear};
-    if(isDamage){item.damageRemarks=sub.querySelector('.damageRemarks')?sub.querySelector('.damageRemarks').value.trim():'';var fi=sub.querySelector('.damageImage');item.file=fi&&fi.files&&fi.files[0]?fi.files[0]:null;if(requireDamage&&(!item.damageRemarks||!item.file))throw new Error('Damage Remarks and Actual Photo are required for Damage Item.');}
+    if(isDamage){
+      item.damageRemarks=tr.querySelector('.damageRemarks')?tr.querySelector('.damageRemarks').value.trim():'';
+      var fi=tr.querySelector('.damageImage');
+      item.file=fi&&fi.files&&fi.files[0]?fi.files[0]:null;
+      if(requireDamage&&(!item.damageRemarks||!item.file))throw new Error('Damage Remarks and Actual Photo are required for Damage Item.');
+    }
     items.push(item);
   }
   return items;
@@ -2049,7 +2130,7 @@ async function handleBarcodeCameraCapture_(fileInput){
 }
 
 /* ── PULL OUT SUBMIT ── */
-async function submitPullOut(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('po',false);if(!items.length)throw new Error('Please add at least one item.');var payload={user:USER,staffName:requireStaff('poStaff'),reason:val('poReason'),destination:val('poDestination'),printRemarks:val('poPrintRemarks'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Pull out saved',res.trackingNo);document.getElementById('formArea-bw').innerHTML=bwFormHtml();initializeBackToWarehouseForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitPullOutTransaction(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
+async function submitPullOut(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('po',false);if(!items.length)throw new Error('Please add at least one item.');var payload={user:USER,staffName:requireStaff('poStaff'),reason:val('poReason'),destination:val('poDestination'),printRemarks:val('poPrintRemarks'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Pull out saved.');showSuccessAnimation('Pull out saved','Transaction created successfully');document.getElementById('formArea-bw').innerHTML=bwFormHtml();initializeBackToWarehouseForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitPullOutTransaction(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
 async function submitSpecialPullOut_(e){
   var btn=e.target;
   try{
@@ -2070,8 +2151,8 @@ async function submitSpecialPullOut_(e){
     google.script.run
       .withSuccessHandler(function(res){
         hideLoading();setButtonLoading(btn,false);
-        toast('Special Pull Out saved — '+res.trackingNo);
-        showSuccessAnimation('Special Pull Out saved',res.trackingNo);
+        toast('Store Pull Out saved.');
+        showSuccessAnimation('Store Pull Out saved','Transaction created successfully');
         document.getElementById('formArea-special').innerHTML=specialPullOutFormHtml_();
         initializeSpecialPullOutForm_();
         refreshPoPreviews();
@@ -2082,7 +2163,7 @@ async function submitSpecialPullOut_(e){
   }catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}
 }
 
-async function submitDamage(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('damage',true);if(!items.length)throw new Error('Please add at least one item.');for(var i=0;i<items.length;i++){items[i].imageData=await fileToDataUrl(items[i].file);delete items[i].file;}var payload={user:USER,staffName:requireStaff('damageStaff'),reasonDamage:val('damageReason'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Saved — '+res.trackingNo);showSuccessAnimation('Damage pull out saved',res.trackingNo);document.getElementById('formArea-dmg').innerHTML=damageFormHtml();initializeDamageForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitDamagePullOut(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
+async function submitDamage(e){var btn=e.target;try{setButtonLoading(btn,true);var items=collectRows('damage',true);if(!items.length)throw new Error('Please add at least one item.');for(var i=0;i<items.length;i++){items[i].imageData=await fileToDataUrl(items[i].file);delete items[i].file;}var payload={user:USER,staffName:requireStaff('damageStaff'),reasonDamage:val('damageReason'),items:items};showLoading();google.script.run.withSuccessHandler(function(res){hideLoading();setButtonLoading(btn,false);toast('Damage pull out saved.');showSuccessAnimation('Damage pull out saved','Transaction created successfully');document.getElementById('formArea-dmg').innerHTML=damageFormHtml();initializeDamageForm_();refreshPoPreviews();TX_LOADED=false;}).withFailureHandler(function(err){hideLoading();setButtonLoading(btn,false);showError(err);}).submitDamagePullOut(payload);}catch(err){hideLoading();setButtonLoading(btn,false);showError(err);}}
 
 /* ── DESTINATION LOGIC (Back to Warehouse form) ── */
 function updatePullOutDestination(){
@@ -2097,8 +2178,13 @@ function updatePullOutDestination(){
     dest.value='WAREHOUSE';dest.disabled=true;dest.classList.add('readonly');
   }
 }
-function updateDamageRequirement(){var reason=val('damageReason').toUpperCase();var show=reason.indexOf('DAMAGE ITEM')!==-1;document.querySelectorAll('#formArea-dmg .damageOnly').forEach(function(el){el.classList.toggle('hidden',!show);});}
-
+function updateDamageRequirement(){
+  var reason=val('damageReason').toUpperCase();
+  var required=reason.indexOf('DAMAGE ITEM')!==-1;
+  document.querySelectorAll('#formArea-dmg .photoHelp').forEach(function(el){
+    el.textContent=required?'Damage Remarks and Photo are required for Damage Item.':'Damage Remarks and Photo are optional for Production Concern.';
+  });
+}
 /* ── SHARED RENDER ── */
 function statusClass(status){var s=String(status||'').toUpperCase();if(s==='PENDING')return'pending';if(s==='RECEIVED'||s.indexOf('RECEIVED')!==-1)return'received';if(s==='CANCELLED'||s==='CANCEL')return'cancelled';if(s.indexOf('PROBLEM')!==-1||s.indexOf('MISSING')!==-1||s.indexOf('SHORT')!==-1)return'problem';return'default';}
 function emptyState(msg){return'<div class="emptyState"><div class="ico">◌</div><p>'+escapeHtml(msg)+'</p></div>';}
@@ -2122,9 +2208,9 @@ function openEditByTracking(trackingNo,type){
   var isSpecial=!!group._specialPullOut;
   var reasonField='';
   if(isSpecial){
-    reasonField='<div class="field"><label>Reason of Pull Out</label><input id="editReason" value="'+escapeHtml(group.reason||'')+'"></div>';
+    reasonField='<div class="field"><label>Reason of Pull Out</label><select id="editReason">'+specialReasonValues_().map(function(r){return'<option value="'+escapeHtml(r)+'"'+(String(r).toUpperCase()===String(group.reason||'').toUpperCase()?' selected':'')+'>'+escapeHtml(r)+'</option>';}).join('')+'</select></div>';
   }else{
-    var rOpts=(isDamage?DATA.damageReasons:DATA.pullOutReasons).map(function(r){return'<option value="'+escapeHtml(r)+'"'+(r===group.reason?' selected':'')+'>'+escapeHtml(r)+'</option>';}).join('');
+    var editReasons=isDamage?['Damage Item','Production Concern']:['Back To Warehouse','Clearance','Stock Transfer'];var rOpts=editReasons.map(function(r){return'<option value="'+escapeHtml(r)+'"'+(String(r).toUpperCase()===String(group.reason||'').toUpperCase()?' selected':'')+'>'+escapeHtml(r)+'</option>';}).join('');
     reasonField='<div class="field"><label>'+(isDamage?'Reason of Damage':'Reason of Pull Out')+'</label><select id="editReason">'+rOpts+'</select></div>';
   }
 
@@ -2482,7 +2568,7 @@ function openReceivedDetails(kind,trackingNo){
 }
 
 /* ── UTILITIES ── */
-function refreshPoPreviews(){if(!USER||!USER.storeName)return;google.script.run.withSuccessHandler(function(po){var p1=document.getElementById('poPreview');var p2=document.getElementById('damagePreview');var p3=document.getElementById('specialPreview');if(p1)p1.value=po;if(p2)p2.value=po;if(p3)p3.value=po;}).withFailureHandler(showError).getPoTrackingPreview(USER.storeName);}
+function refreshPoPreviews(){return;}
 function isReceivedStatus(status){return String(status||'').toUpperCase()==='RECEIVED COMPLETE';}
 function isPendingStatus(status){return String(status||'').toUpperCase()==='PENDING';}
 function parseMonthYear(text){var raw=String(text||'');var parts=raw.split('-');var months=['January','February','March','April','May','June','July','August','September','October','November','December'];var mi=months.findIndex(function(m){return m.toUpperCase()===String(parts[0]||'').toUpperCase();});return{month:mi>=0?String(mi+1):String(new Date().getMonth()+1),year:parts[1]||String(new Date().getFullYear())};}
